@@ -1,9 +1,10 @@
 ﻿using LiteDB;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace IoTDB.NET
 {
-    public class IoTDB
+    public class IoTDatabase : IDisposable
     {
         // Define the event based on the delegate
         event EventHandler<ExceptionEventArgs> ExceptionOccurred;
@@ -17,14 +18,14 @@ namespace IoTDB.NET
 
         private ConcurrentDictionary<long, string> _entities = new ConcurrentDictionary<long, string>();
         private ConcurrentQueue<Action> _operationsQueue = new ConcurrentQueue<Action>();
+        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private Task _workerTask;
         private bool _isWorkerRunning = true;
 
-        public IoTDB(string dbName, string dbPath, bool createPathIfNotExist = false)
+        public IoTDatabase(string dbName, string dbPath, bool createPathIfNotExist = false)
         {
             int logicalProcessorCount = Environment.ProcessorCount;
-            if (logicalProcessorCount - 1 > 1) _numThreads = logicalProcessorCount - 1;
-            else _numThreads = 1;
+            _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
             // Directory checks and creation
             InitializeDirectories(dbPath, createPathIfNotExist);
 
@@ -39,7 +40,7 @@ namespace IoTDB.NET
             InitializeTimeSeriesStorages(dbPathName);
 
             // Start worker task
-            _workerTask = Task.Run(() => ProcessQueue());
+            _workerTask = Task.Run(() => ProcessQueue(), _cancellationTokenSource.Token);
         }
 
 
@@ -64,38 +65,42 @@ namespace IoTDB.NET
             for (int i = 1; i <= _numThreads; i++)
             {
                 TimeSeriesStorages[i] = new TimeSeriesStorage(i.ToString(), Path.Combine(dbPathName, $"TimeSeries"), true);
-                LiteDBTimeSeriesStorages[i] = new LiteDBTimeSeriesStorage(Path.Combine(dbPathName, $"TimeSeries_{i}.db"));
+                LiteDBTimeSeriesStorages[i] = new LiteDBTimeSeriesStorage(Path.Combine(dbPathName, "TimeSeries", $"{i}_TimeSeries.db"));
             }
         }
 
         private void ProcessQueue()
         {
-            // Process operations queue
-            while (_isWorkerRunning || !_operationsQueue.IsEmpty)
+            while (!_cancellationTokenSource.IsCancellationRequested)
             {
-                if (_operationsQueue.TryDequeue(out var operation))
+                if (!_operationsQueue.IsEmpty && _operationsQueue.TryDequeue(out var operation))
                 {
-                    operation.Invoke();
+                    try
+                    {
+                        operation();
+                    }
+                    catch (Exception ex)
+                    {
+                        OnExceptionOccurred(this, new (ex));
+                    }
                 }
                 else
                 {
-                    Task.Delay(100).Wait();
+                    Task.Delay(100, _cancellationTokenSource.Token).Wait(_cancellationTokenSource.Token);
                 }
             }
         }
 
-        public async Task Set(long entityId, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
+        public void Set(long entityId, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
-            await ValidateEntityExistsAsync(entityId);
-            _operationsQueue.Enqueue(() => SetOperation(entityId, value, timestamp, timeSeries));
-
+            SetAsync(entityId, value, timestamp, timeSeries).Wait();
         }
 
-        private void SetOperation(long entityId, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
+        public async Task SetAsync(long entityId, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
-            if (timestamp == default) timestamp = DateTime.UtcNow;
-            Entities.AddOrUpdateProperties(_entities[entityId], (PropertyName.Value, value));
-            // Use round-robin to determine storage key
+            await ValidateEntityExistsAsync(entityId);
+            if (timestamp.Kind != DateTimeKind.Utc) timestamp = DateTime.UtcNow;
+            Entities.SetPropertyValue(_entities[entityId], value, timestamp);
             var storageKey = GetRoundRobinStorageKey();
             if (value.IsNumber && timeSeries)
             {
@@ -108,6 +113,8 @@ namespace IoTDB.NET
                 selectedTimeSeriesStorage.Add(entityId, value, timestamp);
             }
         }
+
+        
         private int GetRoundRobinStorageKey()
         {
             // Safely increment and get the value for round-robin approach
@@ -260,9 +267,33 @@ namespace IoTDB.NET
             return start.Value + fraction * (end.Value - start.Value);
         }
 
+        // Ensure proper disposal of managed resources
+        public void Dispose()
+        {
+            _isWorkerRunning = false;
+            _cancellationTokenSource.Cancel();
+
+            try
+            {
+                _workerTask?.Wait();
+            }
+            catch (AggregateException ae)
+            {
+                ae.Handle(e => e is TaskCanceledException);
+            }
+            finally
+            {
+                _cancellationTokenSource.Dispose();
+                // Dispose other IDisposable resources if necessary
+            }
+        }
+
+
         protected virtual void OnExceptionOccurred(object? sender, ExceptionEventArgs e)
         {
             ExceptionOccurred?.Invoke(sender??this, e);
         }
+
+
     }
 }

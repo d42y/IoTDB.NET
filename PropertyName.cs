@@ -11,6 +11,7 @@ namespace IoTDB.NET
         //default values
         public static readonly string Name = "Name";
         public static readonly string Description = "Description";
+        public static readonly string UniqueIdentifier = "UniqueIdentifier";
         public static readonly string Location = "Location";
         public static readonly string Value = "Value";
         public static readonly string Timestamp = "Timestamp";

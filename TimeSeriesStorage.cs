@@ -11,16 +11,16 @@ namespace IoTDB.NET
 {
     internal class TimeSeriesStorage : IDisposable
     {
-
         // Define the event based on the delegate
         public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
 
         private string _name;
         private string basePath;
-        private ConcurrentQueue<(long id, double value, DateTime timestamp)> queue;
+        private ConcurrentQueue<(long id, double value, DateTime timestamp)> _queue;
         private CancellationTokenSource cancellationTokenSource;
         private Task? writeTask;
-        private readonly object syncRoot = new object();
+        private bool _queueProcessing = false;
+        private readonly object _syncRoot = new object();
 
         private System.Timers.Timer dailyTimer;
 
@@ -46,7 +46,7 @@ namespace IoTDB.NET
             }
             this._name = name;
             this.basePath = basePath;
-            this.queue = new ConcurrentQueue<(long id, double value, DateTime timestamp)>();
+            this._queue = new ConcurrentQueue<(long id, double value, DateTime timestamp)>();
             this.cancellationTokenSource = new CancellationTokenSource();
             StartBackgroundTask();
             // Initialize and start the daily timer
@@ -59,17 +59,21 @@ namespace IoTDB.NET
             {
                 while (!cancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    if (queue.Count > 0)
+
+                    try
                     {
-                        try
+                        if (_queue.Count > 0 && !_queueProcessing)
                         {
                             FlushQueue();
-                        } catch (Exception ex)
-                        {
-                            OnExceptionOccurred(new(ex));
                         }
                     }
-                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationTokenSource.Token);
+                    catch (Exception ex)
+                    {
+                        OnExceptionOccurred(new(ex));
+                        lock (_syncRoot) { _queueProcessing = false; }
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationTokenSource.Token);
                 }
             }, cancellationTokenSource.Token);
         }
@@ -97,7 +101,7 @@ namespace IoTDB.NET
         {
             try
             {
-                lock (syncRoot) // Acquire the lock  
+                lock (_syncRoot) // Acquire the lock  
                 {
                     string dataPath = Path.Combine(basePath, "data");
                     if (!Directory.Exists(dataPath))
@@ -157,22 +161,24 @@ namespace IoTDB.NET
                 if (timestamp == default) timestamp = DateTime.UtcNow;
                 if (timestamp.Kind != DateTimeKind.Utc) timestamp = timestamp.ToUniversalTime();
 
-                queue.Enqueue((id, value, timestamp));
+                _queue.Enqueue((id, value, timestamp));
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
 
         private void FlushQueue()
         {
-            try
+            lock (_syncRoot) // Acquire the lock
             {
-                lock (syncRoot) // Acquire the lock
+                try
                 {
-                    const int MaxItemsPerFlush = 1000; // Adjust this value as needed
+
+                    _queueProcessing = true;
+                    const int MaxItemsPerFlush = 5000; // Adjust this value as needed
                     Dictionary<string, List<TSItem>> openFiles = new();
                     int itemsProcessed = 0;
 
-                    while (itemsProcessed < MaxItemsPerFlush && queue.TryDequeue(out var item))
+                    while (itemsProcessed <= MaxItemsPerFlush && _queue.TryDequeue(out var item))
                     {
                         var filePath = GetFilePathForItem(item.timestamp);
                         if (!openFiles.ContainsKey(filePath))
@@ -201,9 +207,12 @@ namespace IoTDB.NET
                             }
                         }
                     }
+
                 }
+                catch (Exception ex) { OnExceptionOccurred(new(ex)); }
+
+                _queueProcessing = false;
             }
-            catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
 
 
@@ -266,7 +275,7 @@ namespace IoTDB.NET
             try
             {
                 var items = new List<TimeSeriesItem>();
-                lock (syncRoot) // Acquire the lock 
+                lock (_syncRoot) // Acquire the lock 
                 {
                     Time _from = from;
                     Time _to = to;

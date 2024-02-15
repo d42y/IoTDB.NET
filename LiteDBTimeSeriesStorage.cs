@@ -19,6 +19,7 @@ namespace IoTDB.NET
         private CancellationTokenSource _cancellationTokenSource = new();
         private Task _writeTask;
         private readonly object _syncRoot = new object();
+        private bool _queueProcessing = false;
 
         public LiteDBTimeSeriesStorage(string databasePath)
         {
@@ -35,13 +36,19 @@ namespace IoTDB.NET
                 {
                     try
                     {
-                        FlushQueue();
+                        if (_queue.Count > 0 && !_queueProcessing)
+                        {
+                            FlushQueue();
+                        }
                     }
                     catch (Exception ex)
                     {
                         OnExceptionOccurred(new(ex));
+                        lock(_syncRoot) { _queueProcessing = false; }
+                        
+                        
                     }
-                    await Task.Delay(TimeSpan.FromSeconds(1), _cancellationTokenSource.Token);
+                    await Task.Delay(TimeSpan.FromMilliseconds(10), _cancellationTokenSource.Token);
                 }
             }, _cancellationTokenSource.Token);
         }
@@ -56,22 +63,34 @@ namespace IoTDB.NET
 
         private void FlushQueue()
         {
-            try
+            lock (_syncRoot)
             {
-                lock (_syncRoot)
+                _queueProcessing = true;
+                try
                 {
-                    var collection = _db.GetCollection<TimeSeriesItem>("Timeseries");
+
+                    const int MaxItemsPerFlush = 5000; // Adjust this value as needed
+                    int itemsProcessed = 0;
+
                     List<TimeSeriesItem> items = new List<TimeSeriesItem>();
-                    while (_queue.TryDequeue(out var item))
+                    while (_queue.TryDequeue(out var item) && itemsProcessed <= MaxItemsPerFlush)
                     {
 
                         items.Add(new() { EntityIndex = item.EntityIndex, Value = item.Value, Timestamp = item.Timestamp });
+                        itemsProcessed++;
                     }
-                    collection.Insert(items);
-                    //_db.Commit(); do not need to do LiteDB auto commit
+                    if (items.Count > 0)
+                    {
+                        var collection = _db.GetCollection<TimeSeriesItem>("Timeseries");
+                        collection.Insert(items);
+                        //_db.Commit(); do not need to do LiteDB auto commit
+                    }
+
+
                 }
+                catch (Exception ex) { OnExceptionOccurred(new(ex)); }
+                _queueProcessing = false;
             }
-            catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
 
         public IEnumerable<TimeSeriesItem> GetData(int id, DateTime from, DateTime to)
