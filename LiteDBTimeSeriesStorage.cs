@@ -1,4 +1,5 @@
-﻿using LiteDB;
+﻿using IoTDB.NET.Base;
+using LiteDB;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,49 +9,43 @@ using System.Threading.Tasks;
 
 namespace IoTDB.NET
 {
-    internal class LiteDBTimeSeriesStorage : IDisposable
+    internal class LiteDBTimeSeriesStorage : BaseDatabase
     {
         public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
 
-        private readonly string _databasePath;
-        private readonly LiteDatabase _db;
+
         private readonly string _collectionName = "TimeSeriesData";
         private readonly ConcurrentQueue<(long EntityIndex, BsonValue Value, DateTime Timestamp)> _queue = new();
-        private CancellationTokenSource _cancellationTokenSource = new();
-        private Task _writeTask;
-        private readonly object _syncRoot = new object();
+
         private bool _queueProcessing = false;
 
-        public LiteDBTimeSeriesStorage(string databasePath)
+        public LiteDBTimeSeriesStorage(string databasePath) :base(databasePath, 10)
         {
-            _databasePath = databasePath;
-            _db = new LiteDatabase(_databasePath);
-            StartBackgroundTask();
+
         }
 
-        private void StartBackgroundTask()
+        protected override void PerformBackgroundWork(CancellationToken cancellationToken)
         {
-            _writeTask = Task.Run(async () =>
+            if (!cancellationToken.IsCancellationRequested)
             {
-                while (!_cancellationTokenSource.Token.IsCancellationRequested)
+
+                if (_queue.Count > 0 && !_queueProcessing)
                 {
+                    
                     try
                     {
-                        if (_queue.Count > 0 && !_queueProcessing)
-                        {
-                            FlushQueue();
-                        }
+                        FlushQueue();
                     }
                     catch (Exception ex)
                     {
                         OnExceptionOccurred(new(ex));
-                        lock(_syncRoot) { _queueProcessing = false; }
-                        
-                        
+                        lock (SyncRoot) { _queueProcessing = false; }
                     }
-                    await Task.Delay(TimeSpan.FromMilliseconds(10), _cancellationTokenSource.Token);
                 }
-            }, _cancellationTokenSource.Token);
+
+
+            }
+
         }
 
         public void Add(long id, BsonValue value, DateTime timestamp = default)
@@ -63,7 +58,7 @@ namespace IoTDB.NET
 
         private void FlushQueue()
         {
-            lock (_syncRoot)
+            lock (SyncRoot)
             {
                 _queueProcessing = true;
                 try
@@ -81,9 +76,9 @@ namespace IoTDB.NET
                     }
                     if (items.Count > 0)
                     {
-                        var collection = _db.GetCollection<TimeSeriesItem>("Timeseries");
+                        var collection = Database.GetCollection<TimeSeriesItem>("Timeseries");
                         collection.Insert(items);
-                        //_db.Commit(); do not need to do LiteDB auto commit
+                        //Database.Commit(); do not need to do LiteDB auto commit
                     }
 
 
@@ -97,7 +92,7 @@ namespace IoTDB.NET
         {
             try
             {
-                lock (_syncRoot)
+                lock (SyncRoot)
                 {
                     if (from.Kind != DateTimeKind.Utc)
                     {
@@ -107,7 +102,7 @@ namespace IoTDB.NET
                     {
                         to = to.ToUniversalTime();
                     }
-                    var collection = _db.GetCollection<TimeSeriesItem>(_collectionName);
+                    var collection = Database.GetCollection<TimeSeriesItem>(_collectionName);
                     var query = collection.Query()
                         .Where(x => x.Id == id && x.Timestamp >= from && x.Timestamp <= to)
                         .ToEnumerable();
@@ -118,19 +113,10 @@ namespace IoTDB.NET
             return new List<TimeSeriesItem>();
         }
 
-        protected virtual void OnExceptionOccurred(ExceptionEventArgs e)
+        protected override void InitializeDatabase()
         {
-            ExceptionOccurred?.Invoke(this, e);
+            //not necessary in this context
         }
-
-        public void Dispose()
-        {
-            _cancellationTokenSource.Cancel();
-            _writeTask?.Wait();
-            _db.Dispose();
-        }
-
-        
     }
 
 }

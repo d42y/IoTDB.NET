@@ -1,77 +1,104 @@
-﻿using LiteDB;
+﻿using IoTDB.NET.Base;
+using LiteDB;
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using TeaTime;
 
 namespace IoTDB.NET
 {
-    internal class EntityDatabase : IEntityDatabase, IDisposable
+    internal class EntityDatabase : BaseDatabase, IEntityDatabase, IDisposable
     {
-
+        
         // Define the event based on the delegate
-        public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
-        private readonly LiteDatabase _db;
-
         private ConcurrentQueue<(string guid, string name, BsonValue value, DateTime timestamp, bool isUniqueIdentifier)> _propertyValueQueue;
-        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-        private Task? writeTask;
-        private readonly object _syncRoot = new object();
         private bool _queueProcessing = false;
 
-        public EntityDatabase(string dbPath)
+        private ConcurrentDictionary<string, NewEntitty> _addEntitiesBuffer = new(); //key = uniqueHash and value = guid
+        private ConcurrentDictionary<string, NewEntitty> _entitiesBuffered = new(); //key = uniqueHash and value = guid
+        public int GetEntityQueueCount() { return _addEntitiesBuffer.Count; }
+        public EntityDatabase(string dbPath) : base(dbPath)
         {
             try
             {
-                _db = new LiteDatabase(dbPath);
                 this._propertyValueQueue = new();
                 InitializeDatabase();
                 StartBackgroundTask();
             }
             catch (Exception ex) { throw new Exception($"Failed to initialize database. {ex.Message}"); }
-            
+
         }
 
-        private void InitializeDatabase()
+        protected override void InitializeDatabase()
         {
             try
             {
-                var entities = _db.GetCollection<Entity>("Entities");
+                var entities = Database.GetCollection<Entity>("Entities");
                 entities.EnsureIndex(x => x.Guid, true);
 
-                var properties = _db.GetCollection<Property>("Properties");
+                var properties = Database.GetCollection<Property>("Properties");
                 properties.EnsureIndex(x => x.Guid);
                 properties.EnsureIndex(x => new { x.Guid, x.Name }, true);
-            } catch (Exception ex) { throw new Exception($"Failed to initialize database. {ex.Message}"); }
+            }
+            catch (Exception ex) { throw new Exception($"Failed to initialize database. {ex.Message}"); }
         }
 
-        private void StartBackgroundTask()
+        protected override void PerformBackgroundWork(CancellationToken token)
         {
-            this.writeTask = Task.Run(async () =>
+            if (!token.IsCancellationRequested)
             {
-                while (!_cancellationTokenSource.Token.IsCancellationRequested)
+                if (_addEntitiesBuffer.Count > 0 && !_queueProcessing)
                 {
-                    if (_propertyValueQueue.Count > 0 && !_queueProcessing)
+                    try
                     {
-                        try
-                        {
-                            FlushSetPropertyValueQueue();
-                        }
-                        catch (Exception ex)
-                        {
-                            OnExceptionOccurred(new(ex));
-                            lock(_syncRoot) { _queueProcessing = false; }
-                        }
+                        FlushAddEntitiesQueue();
+                     
                     }
-                    await Task.Delay(TimeSpan.FromMilliseconds(100), _cancellationTokenSource.Token);
+                    catch (Exception ex)
+                    {
+                        OnExceptionOccurred(new(ex));
+                        lock (SyncRoot) { _queueProcessing = false; }
+                    }
                 }
-            }, _cancellationTokenSource.Token);
+
+                if (_addEntitiesBuffer.Count == 0)
+                {
+                    lock (SyncRoot)
+                    {
+                        string key = string.Empty;
+                        foreach (var e in _entitiesBuffered)
+                        {
+                            if (IsEntityExists(e.Key))
+                            {
+                                key = e.Key;
+                                
+                            }
+                            break;
+                        }
+                        _entitiesBuffered.TryRemove(key, out _);
+                    }
+                }
+                if (_propertyValueQueue.Count > 0 && !_queueProcessing)
+                {
+                    try
+                    {
+                        FlushSetPropertyValueQueue();
+                      
+                    }
+                    catch (Exception ex)
+                    {
+                        OnExceptionOccurred(new(ex));
+                        lock (SyncRoot) { _queueProcessing = false; }
+                    }
+                }
+
+            }
+
         }
 
         private void FlushSetPropertyValueQueue()
         {
-            lock (_syncRoot) // Acquire the lock
+            lock (SyncRoot) // Acquire the lock
             {
                 _queueProcessing = true;
                 try
@@ -81,10 +108,11 @@ namespace IoTDB.NET
                     List<Property> updateProperties = new List<Property>();
                     List<Property> addProperties = new List<Property>();
                     int itemsProcessed = 0;
-                    var propertiesCollection = _db.GetCollection<Property>("Properties");
+                    var propertiesCollection = Database.GetCollection<Property>("Properties");
+                    
                     while (itemsProcessed <= MaxItemsPerFlush && _propertyValueQueue.TryDequeue(out var item))
                     {
-
+                        
                         var existingProperty = propertiesCollection.FindOne(p => p.Guid == item.guid && p.Name.Equals(item.name));
 
                         if (existingProperty == null)
@@ -103,19 +131,25 @@ namespace IoTDB.NET
                         }
                         else
                         {
-                            var p = updateProperties.FirstOrDefault(x => x.Guid == item.guid && x.Name.Equals(item.name));
-                            if (p != null)
+                            if (existingProperty.IsUniqueIdentifier)
                             {
-                                p.Value = item.value;
-                                p.Timestamp = item.timestamp;
-                                p.IsUniqueIdentifier = item.isUniqueIdentifier;
+                                OnExceptionOccurred(new ExceptionEventArgs(new Exception("Invalid operation. Cannot set set Unique Identifier property.")));
                             }
                             else
                             {
-                                existingProperty.Value = item.value;
-                                existingProperty.Timestamp = item.timestamp;
-                                existingProperty.IsUniqueIdentifier |= item.isUniqueIdentifier;
-                                updateProperties.Add(existingProperty);
+                                //do not update IsUniqueIdentifier flag
+                                var p = updateProperties.FirstOrDefault(x => x.Guid == item.guid && x.Name.Equals(item.name));
+                                if (p != null)
+                                {
+                                    p.Value = item.value;
+                                    p.Timestamp = item.timestamp;
+                                }
+                                else
+                                {
+                                    existingProperty.Value = item.value;
+                                    existingProperty.Timestamp = item.timestamp;
+                                    updateProperties.Add(existingProperty);
+                                }
                             }
                         }
                         itemsProcessed++;
@@ -136,56 +170,91 @@ namespace IoTDB.NET
             }
         }
 
-        private BsonDocument ConvertUniqueIdentifiersToBsonDocument(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+        private void FlushAddEntitiesQueue()
         {
-            BsonDocument document = new BsonDocument();
-
-            foreach (var identifier in uniqueIdentifiers)
+            lock (SyncRoot) // Acquire the lock
             {
-                document[identifier.PropertyName] = identifier.Value;
-            }
-
-            return document;
-        }
-
-        private string GenerateUniqueHashFromIdentifiers(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
-        {
-            // Step 1: Concatenate the property names and values into a single string
-            StringBuilder stringBuilder = new StringBuilder();
-            foreach (var identifier in uniqueIdentifiers)
-            {
-                stringBuilder.Append(identifier.PropertyName);
-                stringBuilder.Append("=");
-                stringBuilder.Append(identifier.Value.ToString());
-                stringBuilder.Append(";");
-            }
-
-            // Step 2: Convert the concatenated string to a byte array
-            byte[] byteData = Encoding.UTF8.GetBytes(stringBuilder.ToString());
-
-            // Step 3: Use a hash algorithm to generate a hash from the byte array
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] hashData = sha256Hash.ComputeHash(byteData);
-
-                // Step 4: Convert the byte array hash to a hexadecimal string
-                StringBuilder hashStringBuilder = new StringBuilder();
-                for (int i = 0; i < hashData.Length; i++)
+                _queueProcessing = true;
+                try
                 {
-                    hashStringBuilder.Append(hashData[i].ToString("x2")); // "x2" for lowercase hex format
-                }
+                    const int MaxItemsPerFlush = 100; // Adjust this value as needed
 
-                return hashStringBuilder.ToString();
+                    int itemsProcessed = 0;
+                    var entities = Database.GetCollection<Entity>("Entities");
+                    var properties = Database.GetCollection<Property>("Properties");
+
+                    List<Entity> addEntities = new List<Entity>();
+                    List<Property> addProperties = new List<Property>();
+                    List<KeyValuePair<string, NewEntitty>> removeItems = new ();
+                    foreach (var item in _addEntitiesBuffer) {
+                        if (itemsProcessed++ > MaxItemsPerFlush) break;
+                       
+                        if (!IsEntityExists(item.Key)) // key is unique hash
+                        {
+                            var entity = new Entity { Guid = item.Value.Guid }; //value is guid
+                            item.Value.Id = entities.Insert(entity);
+                            //addEntities.Add(entity);
+                            // Assuming Property class and its properties for this example
+                            var property = new Property
+                            {
+                                Guid = item.Value.Guid,
+                                Name = PropertyName.UniqueIdentifier,
+                                Value = item.Key,
+                                Timestamp = item.Value.Timestamp,
+                                IsUniqueIdentifier = true
+                            };
+                            addProperties.Add(property);
+                            // Your existing logic for setting property values...
+                            foreach (var identifier in item.Value.Properties)
+                            {
+                                var p = new Property
+                                {
+                                    Guid = item.Value.Guid,
+                                    Name = identifier.PropertyName,
+                                    Value = identifier.Value,
+                                    Timestamp = item.Value.Timestamp,
+                                    IsUniqueIdentifier = true
+                                };
+                                addProperties.Add(p);
+                                
+                            }
+                            _entitiesBuffered.TryAdd(item.Key, item.Value);
+                        }
+                        removeItems.Add(item);
+                        
+
+                    }
+
+                    //if (addEntities.Count > 0) entities.InsertBulk(addEntities, addEntities.Count);
+                    if (addProperties.Count > 0) properties.InsertBulk(addProperties, addProperties.Count);
+                    foreach (var item in removeItems)
+                    {
+                        _addEntitiesBuffer.TryRemove(item.Key, out _);
+                    }
+                }
+                catch (Exception ex) { OnExceptionOccurred(new(ex)); }
+                _queueProcessing = false;
             }
         }
 
-        // Usage within your AddEntity method or elsewhere
+        public void AddEntityQueue(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+        {
+            try
+            {
+                _addEntitiesBuffer.TryAdd(HashUniqueIdentifiers(uniqueIdentifiers), new(uniqueIdentifiers));
+            }
+            catch (Exception ex)
+            {
+                OnExceptionOccurred(new(ex)); // Assuming this handles exceptions
+            }
+        }
+
         public void AddEntity(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
         {
             try
             {
-                var entities = _db.GetCollection<Entity>("Entities");
-                var properties = _db.GetCollection<Property>("Properties");
+                var entities = Database.GetCollection<Entity>("Entities");
+                var properties = Database.GetCollection<Property>("Properties");
 
                 var guid = Guid.NewGuid().ToString();
 
@@ -195,7 +264,7 @@ namespace IoTDB.NET
                     entities.Insert(entity);
 
                     // Convert uniqueIdentifiers to BsonDocument using the new function
-                    string identifiersDoc = GenerateUniqueHashFromIdentifiers(uniqueIdentifiers);
+                    string identifiersDoc = HashUniqueIdentifiers(uniqueIdentifiers);
 
                     // Assuming Property class and its properties for this example
                     properties.Insert(new Property
@@ -224,8 +293,7 @@ namespace IoTDB.NET
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
+                var entities = Database.GetCollection<Entity>("Entities");
 
                 if (!IsGuidExists(guid, entities))
                 {
@@ -242,8 +310,8 @@ namespace IoTDB.NET
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
+
+                var entities = Database.GetCollection<Entity>("Entities");
 
                 // Find the entity by its Id
                 var entity = entities.FindOne(e => e.Id == id);
@@ -258,13 +326,22 @@ namespace IoTDB.NET
 
         }
 
-
+        public (long Id, string Guid)? FindEntity(string uniqueHash)
+        {
+            var properties = Database.GetCollection<Property>("Properties");
+            var p = properties.FindOne(x=>x.Name.Equals(PropertyName.UniqueIdentifier) && x.Value.AsString.Equals(uniqueHash));
+            if (p != null)
+            {
+                return GetEntity(p.Guid);
+            }
+            return null;
+        }
         public (long Id, string Guid)? GetEntity(string guid)
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
+
+                var entities = Database.GetCollection<Entity>("Entities");
 
                 // Find the entity by its Id
                 var entity = entities.FindOne(e => e.Guid == guid);
@@ -283,9 +360,9 @@ namespace IoTDB.NET
         {
             try
             {
-               
-                var properties = _db.GetCollection<Property>("Properties");
-                var entities = _db.GetCollection<Entity>("Entities");
+
+                var properties = Database.GetCollection<Property>("Properties");
+                var entities = Database.GetCollection<Entity>("Entities");
 
                 // First, find all GUIDs that match the uniqueIdentifiers criteria.
                 var guids = new HashSet<string>();
@@ -306,6 +383,12 @@ namespace IoTDB.NET
                     {
                         // If an entity is found, return its Id and Guid.
                         return (entity.Id, entity.Guid);
+                    } else
+                    {
+                        if (_entitiesBuffered.ContainsKey(guid))
+                        {
+                            return ((_entitiesBuffered[guid].Id, guid));
+                        }
                     }
                 }
             }
@@ -324,8 +407,8 @@ namespace IoTDB.NET
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
+
+                var entities = Database.GetCollection<Entity>("Entities");
                 return IsGuidExists(guid, entities);
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -344,40 +427,26 @@ namespace IoTDB.NET
             return count > 0;
         }
 
-        private bool IsEntityExists((string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+        private bool IsEntityExists(string uniqueHash)
         {
-
-            // This dictionary will hold the count of matching properties for each GUID.
-            //var guidMatches = new Dictionary<string, long>();
             try
             {
-                var properties = _db.GetCollection<Property>("Properties");
-                int count = properties.Count(x => x.Name.Equals(PropertyName.UniqueIdentifier) && x.Value.Equals(GenerateUniqueHashFromIdentifiers(uniqueIdentifiers)));
+                var properties = Database.GetCollection<Property>("Properties");
+                int count = properties.Count(x => x.Name.Equals(PropertyName.UniqueIdentifier) && x.Value.AsString.Equals(uniqueHash));
                 return count > 0;
-                //foreach (var identifier in uniqueIdentifiers)
-                //{
-                //    // Find properties that match the current identifier.
-                //    var matchingProperties = properties.Find(p => p.Name == identifier.PropertyName && p.Value == identifier.Value);
 
-                //    foreach (var property in matchingProperties)
-                //    {
-                //        // If the GUID is already in the dictionary, increment its count, otherwise add it with a count of 1.
-                //        if (guidMatches.ContainsKey(property.Guid))
-                //        {
-                //            guidMatches[property.Guid]++;
-                //        }
-                //        else
-                //        {
-                //            guidMatches[property.Guid] = 1;
-                //        }
-                //    }
-                //}
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             // Check if there's at least one GUID that has a matching count equal to the number of unique identifiers.
             // This means the entity has all the specified properties.
             //return guidMatches.Any(g => g.Value == uniqueIdentifiers.Length);
             return false;
+        }
+        private bool IsEntityExists((string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+        {
+
+            return IsEntityExists(HashUniqueIdentifiers(uniqueIdentifiers));
+            
         }
 
         public void SetPropertyValue(string guid, string propertyName, BsonValue value, DateTime timestamp)
@@ -390,92 +459,36 @@ namespace IoTDB.NET
             if (timestamp.Kind != DateTimeKind.Utc) timestamp = timestamp.ToUniversalTime();
             _propertyValueQueue.Enqueue((guid, propertyName, value, timestamp, isUniqueIdentifier));
         }
-        // Method to add or update properties for a specific GUID
-        //public void AddOrUpdateProperties(string guid, params (string PropertyName, BsonValue Value)[] properties)
-        //{
-        //    try
-        //    {
-        //        var propertiesCollection = _db.GetCollection<Property>("Properties");
-
-        //        // Retrieve all existing properties for the given GUID in one go
-        //        var existingProperties = propertiesCollection.Find(p => p.Guid == guid).ToList();
-
-        //        // Prepare lists for bulk operations
-        //        var propertiesToUpdate = new List<Property>();
-        //        var propertiesToInsert = new List<Property>();
-
-        //        foreach (var property in properties)
-        //        {
-        //            var existingProperty = existingProperties.FirstOrDefault(p => p.Name == property.PropertyName);
-
-        //            if (existingProperty != null)
-        //            {
-        //                // Prepare existing property for update
-        //                existingProperty.Value = property.Value;
-        //                propertiesToUpdate.Add(existingProperty);
-        //            }
-        //            else
-        //            {
-        //                // Prepare new property for insertion
-        //                propertiesToInsert.Add(new Property
-        //                {
-        //                    Guid = guid,
-        //                    Name = property.PropertyName,
-        //                    Value = property.Value
-        //                });
-        //            }
-        //        }
-
-        //        // Perform bulk update and insert
-        //        if (propertiesToUpdate.Any())
-        //        {
-        //            propertiesCollection.Update(propertiesToUpdate);
-        //        }
-
-        //        if (propertiesToInsert.Any())
-        //        {
-        //            propertiesCollection.InsertBulk(propertiesToInsert);
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        OnExceptionOccurred(new(ex));
-        //    }
-        //}
-
 
         // Method to asynchronously get all properties for a specific GUID
-        public Dictionary<string, BsonValue> GetProperties(string guid)
+        public List<(string PropertyName, BsonValue Value, DateTime Timestamp)> GetProperties(string guid)
         {
-            var properties = new Dictionary<string, BsonValue>();
+            var properties = new List<(string PropertyName, BsonValue Value, DateTime Timestamp)>();
             try
             {
 
-                var propsCollection = _db.GetCollection<Property>("Properties");
+                var propsCollection = Database.GetCollection<Property>("Properties");
                 var results = propsCollection.Find(p => p.Guid == guid);
+                properties = results.Select(p => (p.Name, p.Value, p.Timestamp)).ToList();
 
-                foreach (var item in results)
-                {
-                    properties[item.Name] = item.Value;
-                }
 
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             return properties;
         }
 
-        public List<(string PropertyName, BsonValue Value)> GetProperties(string guid, params string[] propertyNames)
+        public List<(string PropertyName, BsonValue Value, DateTime Timestamp)> GetProperties(string guid, params string[] propertyNames)
         {
-            var properties = new List<(string PropertyName, BsonValue Value)>();
+            var properties = new List<(string PropertyName, BsonValue Value, DateTime Timestamp)>();
             try
             {
-                var propsCollection = _db.GetCollection<Property>("Properties");
+                var propsCollection = Database.GetCollection<Property>("Properties");
 
                 // Optimize the query based on whether propertyNames are provided
                 IEnumerable<Property> results = propsCollection.Find(p => p.Guid == guid && propertyNames.Contains(p.Name));
-                
+
                 // Convert the results to the desired list of tuples format
-                properties = results.Select(p => (p.Name, p.Value)).ToList();
+                properties = results.Select(p => (p.Name, p.Value, p.Timestamp)).ToList();
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             return properties;
@@ -487,10 +500,10 @@ namespace IoTDB.NET
         {
             try
             {
-                
 
-                var entities = _db.GetCollection<Entity>("Entities");
-                var properties = _db.GetCollection<Property>("Properties");
+
+                var entities = Database.GetCollection<Entity>("Entities");
+                var properties = Database.GetCollection<Property>("Properties");
 
                 var entity = entities.FindOne(e => e.Id == id);
                 if (entity != null)
@@ -515,20 +528,20 @@ namespace IoTDB.NET
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
-                    var properties = _db.GetCollection<Property>("Properties");
 
-                    // First, find the entity to get its GUID
-                    var entity = entities.FindById(id);
-                    if (entity != null)
-                    {
-                        // Delete the entity by ID
-                        entities.Delete(id);
+                var entities = Database.GetCollection<Entity>("Entities");
+                var properties = Database.GetCollection<Property>("Properties");
 
-                        // Then, delete all properties associated with the entity's GUID
-                        properties.DeleteMany(p => p.Guid == entity.Guid);
-                    }
+                // First, find the entity to get its GUID
+                var entity = entities.FindById(id);
+                if (entity != null)
+                {
+                    // Delete the entity by ID
+                    entities.Delete(id);
+
+                    // Then, delete all properties associated with the entity's GUID
+                    properties.DeleteMany(p => p.Guid == entity.Guid);
+                }
                 //_db.Commit(); do not need to do LiteDB auto commit
 
             }
@@ -540,35 +553,25 @@ namespace IoTDB.NET
         {
             try
             {
-                
-                var entities = _db.GetCollection<Entity>("Entities");
-                    var properties = _db.GetCollection<Property>("Properties");
 
-                    // Delete the entity by GUID
-                    var entityDeleted = entities.DeleteMany(e => e.Guid == guid) > 0;
+                var entities = Database.GetCollection<Entity>("Entities");
+                var properties = Database.GetCollection<Property>("Properties");
 
-                    if (entityDeleted)
-                    {
-                        // Delete all properties associated with the GUID
-                        properties.DeleteMany(p => p.Guid == guid);
-                    }
+                // Delete the entity by GUID
+                var entityDeleted = entities.DeleteMany(e => e.Guid == guid) > 0;
+
+                if (entityDeleted)
+                {
+                    // Delete all properties associated with the GUID
+                    properties.DeleteMany(p => p.Guid == guid);
+                }
                 //_db.Commit(); do not need to do LiteDB auto commit
 
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
 
-
-        // Method to raise the event
-        protected virtual void OnExceptionOccurred(ExceptionEventArgs e)
-        {
-            ExceptionOccurred?.Invoke(this, e);
-        }
-
-        public void Dispose()
-        {
-            _db?.Dispose();
-        }
+        
 
 
 
@@ -587,6 +590,21 @@ namespace IoTDB.NET
             public BsonValue Value { get; set; }
             public DateTime Timestamp { get; set; } = DateTime.UtcNow;
             public bool IsUniqueIdentifier { get; set; } = false;
+        }
+
+        private class NewEntitty
+        {
+            public long Id { get; set; }
+            public string Guid { get; set; } = System.Guid.NewGuid().ToString();
+            public string UniqueHash { get; set; }
+            public List<(string PropertyName, BsonValue Value)> Properties { get; set; } = new();
+            public DateTime Timestamp = DateTime.UtcNow;
+
+            public NewEntitty(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+            {
+                UniqueHash = BaseDatabase.HashUniqueIdentifiers(uniqueIdentifiers);
+                Properties = uniqueIdentifiers.Select(p => (p.PropertyName, p.Value)).ToList();
+            }
         }
     }
 

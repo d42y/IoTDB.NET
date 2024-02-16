@@ -100,7 +100,7 @@ namespace IoTDB.NET
         {
             await ValidateEntityExistsAsync(entityId);
             if (timestamp.Kind != DateTimeKind.Utc) timestamp = DateTime.UtcNow;
-            Entities.SetPropertyValue(_entities[entityId], value, timestamp);
+            Entities.SetPropertyValue(_entities[entityId], PropertyName.Value, value, timestamp);
             var storageKey = GetRoundRobinStorageKey();
             if (value.IsNumber && timeSeries)
             {
@@ -135,20 +135,17 @@ namespace IoTDB.NET
             }
         }
 
-        public async Task<(double Value, DateTime Timestamp)?> GetAsync(long entityId)
+        public async Task<(BsonValue Value, DateTime Timestamp)?> GetAsync(long entityId)
         {
             await IsEntityAsync(new() { entityId});
             if (!_entities.ContainsKey(entityId)) { throw new KeyNotFoundException($"GUID not found for Entity Id: {entityId}"); }
 
             var values = Entities.GetProperties(_entities[entityId], PropertyName.Value, PropertyName.Timestamp);
-            if (values.ContainsKey(PropertyName.Value) && values.ContainsKey(PropertyName.Timestamp))
+            foreach (var value in values)
             {
-                if (double.TryParse(values[PropertyName.Value].ToString(), out double value))
-                {
-                    if (DateTime.TryParse(values[PropertyName.Timestamp].ToString(), out DateTime timestamp))
-                    return (value, timestamp);
-                }
+                return (value.Value, value.Timestamp);
             }
+            
 
             return null;
         }
