@@ -249,19 +249,20 @@ namespace IoTDB.NET
             }
         }
 
-        public void AddEntity(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
+        public (long Id, string Guid)? AddEntity(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers)
         {
+            
             try
             {
                 var entities = Database.GetCollection<Entity>("Entities");
                 var properties = Database.GetCollection<Property>("Properties");
 
                 var guid = Guid.NewGuid().ToString();
-
-                if (!IsEntityExists(uniqueIdentifiers)) // Assume this method checks existence
+                var e = GetEntity(uniqueIdentifiers);
+                if (e == null) // Assume this method checks existence
                 {
                     var entity = new Entity { Guid = guid };
-                    entities.Insert(entity);
+                    var id = entities.Insert(entity);
 
                     // Convert uniqueIdentifiers to BsonDocument using the new function
                     string identifiersDoc = HashUniqueIdentifiers(uniqueIdentifiers);
@@ -281,29 +282,36 @@ namespace IoTDB.NET
                     {
                         SetPropertyValue(guid, identifier.PropertyName, identifier.Value, DateTime.UtcNow, true);
                     }
+                    //return new entity
+                    return (id, guid);
                 }
+                //return existing entity
+                return e.Value;
             }
             catch (Exception ex)
             {
                 OnExceptionOccurred(new(ex)); // Assuming this handles exceptions
             }
+            return null;
         }
 
-        public void AddEntity(string guid)
+        public (long Id, string Guid)? AddEntity(string guid)
         {
             try
             {
                 var entities = Database.GetCollection<Entity>("Entities");
-
-                if (!IsGuidExists(guid, entities))
+                var e = GetEntity(guid);
+                if (e == null)
                 {
                     var entity = new Entity { Guid = guid };
-                    entities.Insert(entity);
+                    var id = entities.Insert(entity);
+                    return (id, guid);
                 }
-                //_db.Commit(); do not need to do LiteDB auto commit
+                //return existing entity
+                return e.Value;
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
-
+            return null;
         }
 
         public (long Id, string Guid)? GetEntity(long id)
@@ -449,7 +457,7 @@ namespace IoTDB.NET
             
         }
 
-        public void SetPropertyValue(string guid, string propertyName, BsonValue value, DateTime timestamp)
+        public void AddUpdatePropertyValue(string guid, string propertyName, BsonValue value, DateTime timestamp)
         {
             SetPropertyValue(guid, propertyName, value, timestamp, false);
         }
@@ -572,6 +580,7 @@ namespace IoTDB.NET
         }
 
         
+
 
 
 

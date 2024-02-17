@@ -7,9 +7,9 @@ namespace IoTDB.NET
         event EventHandler<ExceptionEventArgs> ExceptionOccurred;
         int GetEntityQueueCount();
         void AddEntityQueue(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers);
-        void AddEntity(string guid);
-        void AddEntity(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers);
-        void SetPropertyValue(string guid, string propertyName, BsonValue value, DateTime timestamp);
+        (long Id, string Guid)? AddEntity(string guid);
+        (long Id, string Guid)? AddEntity(params (string PropertyName, BsonValue Value)[] uniqueIdentifiers);
+        void AddUpdatePropertyValue(string guid, string propertyName, BsonValue value, DateTime timestamp);
         //void AddOrUpdateProperties(string guid, params (string PropertyName, BsonValue Value)[] properties);
         void DeleteEntity(long id);
         void DeleteEntity(string guid);

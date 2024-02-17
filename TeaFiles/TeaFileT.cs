@@ -11,7 +11,7 @@ namespace TeaTime
     /// <see cref="Write(T)"/> and <see cref="Read"/> items to and from TeaFiles.
     /// </remarks>
     ///<typeparam name="T">The item type.</typeparam>
-    public sealed class TeaFile<T> : IDisposable where T : struct
+    internal sealed class TeaFile<T> : IDisposable where T : struct
     {
         #region Construction
 

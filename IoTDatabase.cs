@@ -100,7 +100,7 @@ namespace IoTDB.NET
         {
             await ValidateEntityExistsAsync(entityId);
             if (timestamp.Kind != DateTimeKind.Utc) timestamp = DateTime.UtcNow;
-            Entities.SetPropertyValue(_entities[entityId], PropertyName.Value, value, timestamp);
+            Entities.AddUpdatePropertyValue(_entities[entityId], PropertyName.Value, value, timestamp);
             var storageKey = GetRoundRobinStorageKey();
             if (value.IsNumber && timeSeries)
             {
