@@ -9,7 +9,6 @@ namespace IoTDBdotNET
         private readonly string _collectionName = "table";
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
-        private ConcurrentQueue<T> _insertEntityQueue = new ConcurrentQueue<T>();
 
         public TableCollection(string dbPath, string tableName) : base(dbPath, tableName)
         {
@@ -97,8 +96,6 @@ namespace IoTDBdotNET
         /// Eg: col.UpdateMany(x => new Customer { Name = x.Name.ToUpper(), Salary: 100 }, x => x.Name == "John")
         /// </summary>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate) => Table.UpdateMany(extend, predicate);
-
-        public void InsertQueue(T entity) => _insertEntityQueue.Enqueue(entity);
 
         /// <summary>
         /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
@@ -372,7 +369,6 @@ namespace IoTDBdotNET
                     _processingQueue = true;
                     try
                     {
-                        CommitInsert();
                         CommitUpdate();
                     }
                     catch (Exception ex)
@@ -384,37 +380,6 @@ namespace IoTDBdotNET
                         _processingQueue = false;
                     }
                 }
-            }
-        }
-
-        private void CommitInsert()
-        {
-            int count = 0;
-            Dictionary<long, T> entityList = new();
-            List<long> id = new List<long>();
-            while (_insertEntityQueue.TryDequeue(out var entity) && count++ <= 1000)
-            {
-                var idProperty = typeof(T).GetProperty("Id");
-                if (idProperty == null)
-                {
-                    OnExceptionOccurred(new(new InvalidOperationException("Type T must have a property named 'Id'.")));
-                }
-                else
-                {
-                    long entityId = Convert.ToInt64(idProperty.GetValue(entity));
-                    if (entityId > 0)
-                    {
-                        entityId = 0;
-                    }
-
-                    entityList.Add(entityId, entity);
-
-                }
-            }
-            if (entityList.Count > 0)
-            {
-                var entities = Database.GetCollection<T>(_collectionName);
-                entities.InsertBulk(entityList.Select(x => x.Value).ToList(), entityList.Count);
             }
         }
 

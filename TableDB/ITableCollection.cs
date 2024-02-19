@@ -59,6 +59,7 @@ namespace IoTDBdotNET
         ILiteQueryable<T> Query();
         bool Update(BsonValue id, T entity);
         int Update(IEnumerable<T> entities);
+        void UpdateQueue(T entity);
         bool Update(T entity);
         int UpdateMany(BsonExpression transform, BsonExpression predicate);
         int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate);
