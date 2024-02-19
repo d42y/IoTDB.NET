@@ -1,8 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
-using System.Threading;
-using IoTDBdotNET;
 
 namespace IoTDBdotNET
 {

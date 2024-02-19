@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
-using IoTDBdotNET;
-using System.IO;
+﻿using System.Collections.Concurrent;
 using System.Timers;
-using System.Reflection;
 
 namespace IoTDBdotNET
 {
@@ -117,7 +111,7 @@ namespace IoTDBdotNET
                     foreach (var oldFile in oldFiles)
                     {
                         // Open the old file for reading
-                        using (var oldTeaFile = TeaFile<TSItem>.OpenRead(oldFile))
+                        using (var oldTeaFile = TeaFile<TeaItem>.OpenRead(oldFile))
                         {
                             var items = oldTeaFile.Items.ToList(); // Read all items from the old file
 
@@ -125,7 +119,7 @@ namespace IoTDBdotNET
                             if (File.Exists(targetFilePath))
                             {
                                 // If the target file exists, append items to it
-                                using (var targetTeaFile = TeaFile<TSItem>.Append(targetFilePath))
+                                using (var targetTeaFile = TeaFile<TeaItem>.Append(targetFilePath))
                                 {
                                     foreach (var item in items)
                                     {
@@ -136,7 +130,7 @@ namespace IoTDBdotNET
                             else
                             {
                                 // If the target file does not exist, create it and write items
-                                using (var targetTeaFile = TeaFile<TSItem>.Create(targetFilePath))
+                                using (var targetTeaFile = TeaFile<TeaItem>.Create(targetFilePath))
                                 {
                                     foreach (var item in items)
                                     {
@@ -175,7 +169,7 @@ namespace IoTDBdotNET
 
                     _queueProcessing = true;
                     const int MaxItemsPerFlush = 5000; // Adjust this value as needed
-                    Dictionary<string, List<TSItem>> openFiles = new();
+                    Dictionary<string, List<TeaItem>> openFiles = new();
                     int itemsProcessed = 0;
 
                     while (itemsProcessed <= MaxItemsPerFlush && _queue.TryDequeue(out var item))
@@ -183,25 +177,25 @@ namespace IoTDBdotNET
                         var filePath = GetFilePathForItem(item.timestamp);
                         if (!openFiles.ContainsKey(filePath))
                         {
-                            openFiles.Add(filePath, new List<TSItem>());
+                            openFiles.Add(filePath, new List<TeaItem>());
                         }
-                        openFiles[filePath].Add(new TSItem { EntityId = item.id, Timestamp = item.timestamp, Value = item.value });
+                        openFiles[filePath].Add(new TeaItem { EntityId = item.id, Timestamp = item.timestamp, Value = item.value });
                         itemsProcessed++;
                     }
 
                     foreach (var file in openFiles)
                     {
-                        List<TSItem> itemsToWrite = file.Value;
+                        List<TeaItem> itemsToWrite = file.Value;
                         if (File.Exists(file.Key))
                         {
-                            using (var tf = TeaFile<TSItem>.Append(file.Key))
+                            using (var tf = TeaFile<TeaItem>.Append(file.Key))
                             {
                                 tf.Write(itemsToWrite);
                             }
                         }
                         else
                         {
-                            using (var tf = TeaFile<TSItem>.Create(file.Key))
+                            using (var tf = TeaFile<TeaItem>.Create(file.Key))
                             {
                                 tf.Write(itemsToWrite);
                             }
@@ -230,9 +224,9 @@ namespace IoTDBdotNET
 
         //read
 
-        public List<IoTDBdotNET.TSItem> GetData(List<long> ids, DateTime from, DateTime to)
+        public List<TSItem> GetData(List<long> ids, DateTime from, DateTime to)
         {
-            List<IoTDBdotNET.TSItem>? items = null;
+            List<TSItem>? items = null;
             try
             {
                 if (from.Kind != DateTimeKind.Utc)
@@ -261,7 +255,7 @@ namespace IoTDBdotNET
                 var memItems = ReadItemsFromFile(Path.Combine(basePath, "data", $"{_name}.tea"), ids, from, to);
                 if (memItems != null)
                 {
-                    if (items == null) { items = new List<IoTDBdotNET.TSItem>(); }
+                    if (items == null) { items = new List<TSItem>(); }
                     items.AddRange(memItems);
                 }
             }
@@ -270,27 +264,29 @@ namespace IoTDBdotNET
 
         }
 
-        private List<IoTDBdotNET.TSItem> ReadItemsFromFile(string filePath, List<long> targetIds, DateTime from, DateTime to)
+        private List<TSItem> ReadItemsFromFile(string filePath, List<long> targetIds, DateTime from, DateTime to)
         {
+            var items = new List<TSItem>();
             try
             {
-                var items = new List<IoTDBdotNET.TSItem>();
+                
                 lock (_syncRoot) // Acquire the lock 
                 {
                     Time _from = from;
                     Time _to = to;
-                    using (var tf = TeaFile<TSItem>.OpenRead(filePath))
+                    using (var tf = TeaFile<TeaItem>.OpenRead(filePath))
                     {
                         var tsItems = tf.Items.Where(item => targetIds.Contains(item.EntityId) && item.Timestamp >= _from && item.Timestamp <= _to).ToList();
                         foreach (var tsItem in tsItems)
                         {
                             items.Add(new() { EntityIndex = tsItem.EntityId, Value = tsItem.Value, Timestamp = tsItem.ToDateTime });
                         }
+                      
                     }
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
-            return new();
+            return items;
         }
 
 
@@ -308,7 +304,7 @@ namespace IoTDBdotNET
             dailyTimer?.Dispose();
         }
 
-        private struct TSItem
+        private struct TeaItem
         {
             [EventTime]
             public Time Timestamp;

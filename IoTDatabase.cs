@@ -1,7 +1,4 @@
-﻿using IoTDBdotNET;
-using System.Collections.Concurrent;
-using System.Reflection.Metadata.Ecma335;
-using System.Threading;
+﻿using System.Collections.Concurrent;
 
 namespace IoTDBdotNET
 {

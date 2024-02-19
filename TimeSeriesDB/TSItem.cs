@@ -1,6 +1,4 @@
-﻿using IoTDBdotNET;
-
-namespace IoTDBdotNET
+﻿namespace IoTDBdotNET
 {
     // Time series item structure
     internal struct TSItem

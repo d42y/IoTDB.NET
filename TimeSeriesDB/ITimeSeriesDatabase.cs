@@ -1,5 +1,4 @@
-﻿using IoTDBdotNET;
-
+﻿
 namespace IoTDBdotNET
 {
     public interface ITimeSeriesDatabase
