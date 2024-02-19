@@ -86,14 +86,14 @@ namespace IoTDBdotNET
         }
         #endregion background task
 
-        #region Set
+        #region Insert
 
-        public void Set(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
+        public void Insert(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
-            SetAsync(guid, value, timestamp, timeSeries).Wait();
+            InsertAsync(guid, value, timestamp, timeSeries).Wait();
         }
 
-        public async Task SetAsync(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
+        public async Task InsertAsync(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
             Entity? entity = null;
             if (_entities.ContainsKey(guid))
@@ -101,7 +101,7 @@ namespace IoTDBdotNET
                 entity = _entities[guid];
                 entity.Value = value;
                 entity.Timestamp = timestamp;
-                _updateEntityQueue.Enqueue(guid);
+                await Task.Run(() => _updateEntityQueue.Enqueue(guid));
             }
             else
             {
@@ -125,10 +125,10 @@ namespace IoTDBdotNET
             }
         }
 
-        #endregion Set
+        #endregion Insert
 
         #region Get
-        public async Task<(BsonValue Value, DateTime Timestamp)> GetAsync(string guid)
+        public (BsonValue Value, DateTime Timestamp) Get(string guid)
         {
             if (_entities.ContainsKey(guid))
             {

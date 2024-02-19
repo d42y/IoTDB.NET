@@ -1,29 +1,30 @@
 ﻿
-# IoTDB.NET Library
+# IoTDBdotNET Library
 
 ## Overview
 
-IoTDB.NET is optimized for C# applications, offering a lightweight alternative to traditional databases. IoTDB.NET design allows for effective management of time-series data, catering specifically to the needs of IoT applications.
+IoTDBdotNET is optimized for C# applications, offering a lightweight alternative to traditional databases. IoTDBdotNET design based LiteDB for tables and TeaFiles for time series. 
 
 ## Features
 
 - Light weight and fast time-series data storage
-- Flexible Entity management
+- IoTDatabase preconfigured structure allows for quick and easy use of database
 - Time-series data retrieval with support for interval and linear interpolation
+- Support both tables and time series
 - Thread-safe data handling
 
 ## Before You Continue
 
 - This is beta release. 
-- IoTDB.NET is designed to store values as the double data type, catering primarily to the numeric outputs commonly produced by IoT sensors. This structure is optimized for handling time series data that is numerical in nature. If your application requires the storage of time series data in non-numeric formats, IoTDB.NET may not suit your needs.
-- IoTDB.NET entities can have properties as string data type. However, those properties are not time series data.
+- IoTDBdotNET time series data support both numeric and Bson value. However, IoT numeric data can be stored much at 500K entries per second.
+- IoTDBdotNET tables are thread safe isolicated. Each table operate on it own thread to provide fater processing. Table.UpdateQue function allows queuing for background processing.
 
 ## Installation
 
-To use the IoTDB.NET library in your project, follow these steps:
+To use the IoTDBdotNET library in your project, follow these steps:
 
 1. .NET environment compatible with C# .NET 7
-2. Install IoTDB.NET NuGet Package.
+2. Install IoTDBdotNET NuGet Package.
 
 ## Quick Start
 
@@ -39,7 +40,7 @@ var dbPath = "path/to/database/directory";
 bool createPathIfNotExist = true;
 
 // Create an instance of IoTData
-var iotData = new IoTData(dbName, dbPath, createPathIfNotExist);
+var iotData = new IoTDatabase(dbName, dbPath, createPathIfNotExist);
 ```
 
 ### Create an Entity
