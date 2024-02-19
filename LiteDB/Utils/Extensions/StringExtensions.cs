@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal static class StringExtensions
     {

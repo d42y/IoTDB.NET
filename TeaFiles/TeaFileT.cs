@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>Create, write and read TeaFiles using their item type (typed reading).</summary>
     /// <remarks>This class is the core of this assembly. Use it to <see cref="Create(string,string,TeaTime.NameValueCollection,bool)"/>, 

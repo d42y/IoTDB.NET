@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4 }
 

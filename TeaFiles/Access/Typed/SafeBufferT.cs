@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     unsafe class SafeBuffer<T> : SafeBuffer where T : struct
     {

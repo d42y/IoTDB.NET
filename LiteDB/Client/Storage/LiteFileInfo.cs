@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Represents a file inside storage collection

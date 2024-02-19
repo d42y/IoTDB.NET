@@ -5,9 +5,9 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Class used to test in an Expression member expression is based on parameter `x => x.Name` or variable `x => externalVar`

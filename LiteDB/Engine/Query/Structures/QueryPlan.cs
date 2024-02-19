@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// This class are result from optimization from QueryBuild in QueryAnalyzer. Indicate how engine must run query - there is no more decisions to engine made, must only execute as query was defined

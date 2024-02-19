@@ -4,9 +4,9 @@ using System.Text;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Collections;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal static class TypeInfoExtensions
     {

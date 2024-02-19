@@ -1,10 +1,10 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Linq;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal static class BufferSliceExtensions
     {

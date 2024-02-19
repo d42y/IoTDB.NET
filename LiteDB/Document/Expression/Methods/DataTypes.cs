@@ -5,9 +5,9 @@ using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal partial class BsonExpressionMethods
     {

@@ -1,4 +1,4 @@
-﻿namespace LiteDB
+﻿namespace IoTDBdotNET
 {
     /// <summary>
     /// All supported BsonTypes supported in AutoId insert operation

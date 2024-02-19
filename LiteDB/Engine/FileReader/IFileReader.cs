@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Interface to read current or old datafile structure - Used to shirnk/upgrade datafile from old LiteDB versions

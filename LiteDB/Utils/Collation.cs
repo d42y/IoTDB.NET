@@ -5,9 +5,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Implement how database will compare to order by/find strings according defined culture/compare options
@@ -25,7 +25,7 @@ namespace LiteDB
                 (CompareOptions)Enum.Parse(typeof(CompareOptions), parts[1]) : 
                 CompareOptions.None;
 
-            this.LCID = LiteDB.LCID.GetLCID(culture);
+            this.LCID = IoTDBdotNET.LCID.GetLCID(culture);
             this.SortOptions = sortOptions;
             this.Culture = new CultureInfo(culture);
 
@@ -36,12 +36,12 @@ namespace LiteDB
         {
             this.LCID = lcid;
             this.SortOptions = sortOptions;
-            this.Culture = LiteDB.LCID.GetCulture(lcid);
+            this.Culture = IoTDBdotNET.LCID.GetCulture(lcid);
 
             _compareInfo = this.Culture.CompareInfo;
         }
 
-        public static Collation Default = new Collation(LiteDB.LCID.Current, CompareOptions.IgnoreCase);
+        public static Collation Default = new Collation(IoTDBdotNET.LCID.Current, CompareOptions.IgnoreCase);
 
         public static Collation Binary = new Collation(127 /* Invariant */, CompareOptions.Ordinal);
 

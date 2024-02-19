@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Basic extensions on elementary types like strings or collections.

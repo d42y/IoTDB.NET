@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     public interface ILiteEngine : IDisposable
     {

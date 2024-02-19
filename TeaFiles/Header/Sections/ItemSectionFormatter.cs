@@ -1,5 +1,5 @@
 // copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// A TeaFile's ItemSection stores the layout of the Item's fields.

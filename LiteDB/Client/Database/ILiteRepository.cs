@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     public interface ILiteRepository : IDisposable
     {

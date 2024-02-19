@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Represent a single transaction service. Need a new instance for each transaction.

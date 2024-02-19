@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// This section persists the time epoch and resolution used for time values and the 

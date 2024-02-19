@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     public partial class LiteEngine
     {
@@ -104,7 +104,7 @@ namespace LiteDB.Engine
             }
             
             // find indexNode from pk index
-            var pkNode = indexer.Find(col.PK, id, false, LiteDB.Query.Ascending);
+            var pkNode = indexer.Find(col.PK, id, false, IoTDBdotNET.Query.Ascending);
             
             // if not found document, no updates
             if (pkNode == null) return false;

@@ -2,7 +2,7 @@
 using System;
 using System.Text;
 
-namespace TeaTime.IO
+namespace IoTDBdotNET.IO
 {
     /// <summary>
     /// FormattedReader provides higher level file reading on top of <see cref="IFileIO"/>. In the sense of 

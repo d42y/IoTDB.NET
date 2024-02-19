@@ -1,7 +1,7 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
 using System;
 
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// The ContentDescription holds a plain string desribing what the file stores.<br></br>

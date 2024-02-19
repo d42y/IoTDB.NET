@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Reflection;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Internal representation for a .NET member mapped to BsonDocument

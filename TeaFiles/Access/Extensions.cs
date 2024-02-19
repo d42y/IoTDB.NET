@@ -2,7 +2,7 @@
 using System;
 using System.IO;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     partial class Extensions
     {

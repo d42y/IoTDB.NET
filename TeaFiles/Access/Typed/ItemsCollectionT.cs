@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>Provides access to items using typed <see cref="TeaFile{T}"/>. </summary>
     /// <remarks>

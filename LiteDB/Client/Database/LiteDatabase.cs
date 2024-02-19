@@ -4,10 +4,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using LiteDB.Engine;
-using static LiteDB.Constants;
+using IoTDBdotNET.Engine;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// The LiteDB database. Used for create a LiteDB instance and use all storage resources. It's the database connection

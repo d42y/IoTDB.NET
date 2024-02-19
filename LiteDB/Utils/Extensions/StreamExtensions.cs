@@ -1,8 +1,8 @@
 ﻿using System;
 using System.IO;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal static class StreamExtensions
     {

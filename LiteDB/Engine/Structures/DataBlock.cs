@@ -1,7 +1,7 @@
 ﻿using System;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     internal class DataBlock
     {

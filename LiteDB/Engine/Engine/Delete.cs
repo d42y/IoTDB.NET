@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     public partial class LiteEngine
     {
@@ -31,7 +31,7 @@ namespace LiteDB.Engine
 
                 foreach (var id in ids)
                 {
-                    var pkNode = indexer.Find(pk, id, false, LiteDB.Query.Ascending);
+                    var pkNode = indexer.Find(pk, id, false, IoTDBdotNET.Query.Ascending);
 
                     // if pk not found, continue
                     if (pkNode == null) continue;

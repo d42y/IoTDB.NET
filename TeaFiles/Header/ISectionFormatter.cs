@@ -1,5 +1,5 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// Each section in a TeaFile's header is identifed by an Id and can be written and read.<br></br>

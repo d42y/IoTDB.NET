@@ -1,10 +1,10 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Manage ConnectionString to connect and create databases. Connection string are NameValue using Name1=Value1; Name2=Value2

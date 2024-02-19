@@ -1,7 +1,7 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
 using System;
 
-namespace TeaTime.IO
+namespace IoTDBdotNET.IO
 {
     /// <summary>
     /// This interface describes the low level file I/O methods required to read

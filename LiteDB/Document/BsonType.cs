@@ -1,4 +1,4 @@
-﻿namespace LiteDB
+﻿namespace IoTDBdotNET
 {
     /// <summary>
     /// All supported BsonTypes in sort order

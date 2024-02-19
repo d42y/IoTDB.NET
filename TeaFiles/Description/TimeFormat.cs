@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Describes the time format applicable to the ticks stored in the time series items.<br></br>

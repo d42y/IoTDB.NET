@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     public partial class LiteEngine
     {
@@ -51,7 +51,7 @@ namespace LiteDB.Engine
                 var count = 0u;
 
                 // read all objects (read from PK index)
-                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
+                foreach (var pkNode in new IndexAll("_id", IoTDBdotNET.Query.Ascending).Run(collectionPage, indexer))
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {

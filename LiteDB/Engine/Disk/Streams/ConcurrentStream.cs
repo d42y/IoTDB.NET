@@ -1,8 +1,8 @@
 ﻿using System;
 using System.IO;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Implement internal thread-safe Stream using lock control - A single instance of ConcurrentStream are not multi thread,

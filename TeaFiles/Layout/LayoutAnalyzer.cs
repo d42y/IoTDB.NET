@@ -6,7 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// The layout analyzer analyses the layout of the struct used for a TeaFile.<br></br>

@@ -1,7 +1,7 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
-using TeaTime.IO;
+using IoTDBdotNET.IO;
 
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// During header reading, the ReaContext provides section descriptions 

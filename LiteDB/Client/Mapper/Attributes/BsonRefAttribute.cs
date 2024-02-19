@@ -1,7 +1,7 @@
 ﻿using System;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Indicate that field are not persisted inside this document but it's a reference for another document (DbRef)

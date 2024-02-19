@@ -1,7 +1,7 @@
 using System;
 using System.Reflection;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     public class DefaultTypeNameBinder : ITypeNameBinder
     {

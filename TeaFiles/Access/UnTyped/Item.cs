@@ -1,7 +1,7 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
 using System.Linq;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Holds the values of an Item when reading a TeaFile untyped.

@@ -2,7 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// TeaFiles optionally hold a description, describing item layout and content.

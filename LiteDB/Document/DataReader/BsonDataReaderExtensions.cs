@@ -1,11 +1,11 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Implement some Enumerable methods to IBsonDataReader

@@ -1,4 +1,4 @@
-﻿namespace LiteDB.Engine
+﻿namespace IoTDBdotNET.Engine
 {
     internal enum FileOrigin : byte
     {

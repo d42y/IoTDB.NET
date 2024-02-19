@@ -1,13 +1,13 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.

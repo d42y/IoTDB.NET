@@ -1,8 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal class ArrayPool<T>
     {

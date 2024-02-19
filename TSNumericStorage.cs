@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
-using TeaTime;
+using IoTDBdotNET;
 using System.IO;
 using System.Timers;
 using System.Reflection;

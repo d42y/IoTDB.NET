@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using LiteDB.Engine;
-using static LiteDB.Constants;
+using IoTDBdotNET.Engine;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     internal partial class SqlParser
     {

@@ -2,7 +2,7 @@
 using System;
 using System.IO;
 
-namespace TeaTime.IO
+namespace IoTDBdotNET.IO
 {
     /// <summary>
     /// Exposes low level file IO methods. This class collects the whole functionality required from the file system api of an operating system or

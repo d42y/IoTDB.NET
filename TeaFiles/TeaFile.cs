@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Read TeaFiles without knowing anything about their content (untyped reading).

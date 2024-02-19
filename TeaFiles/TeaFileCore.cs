@@ -1,10 +1,10 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
 using System;
 using System.IO;
-using TeaTime.Header;
-using TeaTime.IO;
+using IoTDBdotNET.Header;
+using IoTDBdotNET.IO;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// This class holds methods common required for untyped and typed reading.

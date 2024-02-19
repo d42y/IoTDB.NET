@@ -2,7 +2,7 @@
 using System;
 using System.Diagnostics;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     ///<summary>
     /// Describes the behavior upon <see cref="Timescale"/> collision.

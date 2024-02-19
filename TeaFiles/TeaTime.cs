@@ -1,5 +1,5 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// The <b>TeaTime</b> namespace provides classes to read and write <a href="http://discretelogics.com/Product/TeaFiles">TeaFiles</a>. TeaFiles 

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Interface for abstract document lookup that can be direct from datafile or by virtual collections

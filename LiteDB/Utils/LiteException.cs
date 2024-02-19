@@ -1,11 +1,11 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// The main exception for LiteDB

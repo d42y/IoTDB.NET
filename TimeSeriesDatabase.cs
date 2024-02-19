@@ -1,10 +1,8 @@
-﻿using IoTDBdotNET.Base;
-using LiteDB;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Threading;
-using TeaTime;
+using IoTDBdotNET;
 
 namespace IoTDBdotNET
 {

@@ -1,7 +1,7 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
 using System;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Defines the field of a struct holding the event time.

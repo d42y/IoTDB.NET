@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+﻿using IoTDBdotNET.Engine;
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -8,7 +8,7 @@ using System.Threading;
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
 #endif
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Class with all constants used in LiteDB + Debbuger HELPER

@@ -5,7 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>Describes the type of items stored in a TeaFile.</summary>
     /// <remarks>

@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>Provides access to items of untyped <see cref="TeaFile"/>. </summary>
     public interface IItemCollection : IEnumerable<Item>

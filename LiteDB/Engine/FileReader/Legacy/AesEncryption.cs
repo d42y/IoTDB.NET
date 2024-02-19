@@ -2,9 +2,9 @@
 using System.Security.Cryptography;
 using System.IO;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Encryption AES wrapper to encrypt data pages

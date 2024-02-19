@@ -1,7 +1,7 @@
 ﻿using System;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Indicate that property will not be persist in Bson serialization

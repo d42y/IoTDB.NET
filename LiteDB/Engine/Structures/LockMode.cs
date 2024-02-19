@@ -1,4 +1,4 @@
-﻿namespace LiteDB.Engine
+﻿namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Represents a snapshot lock mode

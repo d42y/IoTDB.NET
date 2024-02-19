@@ -2,7 +2,7 @@
 using System;
 using System.Linq;
 
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     /// <summary>
     /// The NameValue section holds a collection of Name / Value pairs. See <see cref="NameValue"/> or details of the value types.

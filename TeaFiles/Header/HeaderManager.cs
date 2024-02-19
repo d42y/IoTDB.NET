@@ -4,9 +4,9 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using TeaTime.IO;
+using IoTDBdotNET.IO;
 
-namespace TeaTime.Header
+namespace IoTDBdotNET.Header
 {
     class HeaderManager
     {

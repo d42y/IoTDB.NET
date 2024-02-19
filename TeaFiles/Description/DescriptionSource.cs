@@ -1,5 +1,5 @@
 ﻿// copyright discretelogics 2012. released under the gpl v3. see license.txt for details.
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>
     /// Describes the origin of an ItemDescription.

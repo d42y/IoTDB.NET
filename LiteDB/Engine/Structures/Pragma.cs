@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Represent a single internal engine variable that user can read/change

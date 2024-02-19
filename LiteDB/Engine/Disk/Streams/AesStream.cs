@@ -2,9 +2,9 @@
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Encrypted AES Stream

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using LiteDB.Engine;
+using IoTDBdotNET.Engine;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     public interface ILiteDatabase : IDisposable
     {

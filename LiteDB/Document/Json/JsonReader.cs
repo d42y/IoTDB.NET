@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     /// <summary>
     /// A class that read a json string using a tokenizer (without regex)

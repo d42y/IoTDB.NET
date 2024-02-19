@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LiteDB
+namespace IoTDBdotNET
 {
     public interface ITypeNameBinder
     {

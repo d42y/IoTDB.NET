@@ -5,9 +5,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using static LiteDB.Constants;
+using static IoTDBdotNET.Constants;
 
-namespace LiteDB.Engine
+namespace IoTDBdotNET.Engine
 {
     /// <summary>
     /// Header page represent first page on datafile. Engine contains a single instance of HeaderPage and all changes

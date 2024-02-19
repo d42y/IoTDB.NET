@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     ///<summary>
     /// Access items in TeaFiles via safe memory mapping using <see cref="MemoryMappedFile"/>.

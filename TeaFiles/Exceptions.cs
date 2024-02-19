@@ -5,7 +5,7 @@ using System.Diagnostics;
 // For guidelines regarding the creation of new exception types, see
 // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/cpgenref/html/cpconerrorraisinghandlingguidelines.asp
 
-namespace TeaTime
+namespace IoTDBdotNET
 {
     /// <summary>The item type violates constraints.</summary>
     /// <remarks>For instance, the item must expose fields that match any <see cref="FieldType"/>.</remarks>
