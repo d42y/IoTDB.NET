@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace IoTDBdotNET
@@ -6,6 +7,10 @@ namespace IoTDBdotNET
     internal class TableCollection<T> : BaseDatabase, ITableCollection<T>
     {
         private readonly string _collectionName = "table";
+        private bool _processingQueue = false;
+        private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
+        private ConcurrentQueue<T> _insertEntityQueue = new ConcurrentQueue<T>();
+
         public TableCollection(string dbPath, string tableName) : base(dbPath, tableName)
         {
             if (!HasIdProperty())
@@ -15,7 +20,6 @@ namespace IoTDBdotNET
         }
 
         private ILiteCollection<T> Table => Database.GetCollection<T>(_collectionName);
-
 
         #region ILiteCollection
         /// <summary>
@@ -37,13 +41,13 @@ namespace IoTDBdotNET
         /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
         /// Returns a new Collection with this action included
         /// </summary>
-        // public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => Table.Include<K>(keySelector);
+        public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => Table.Include<K>(keySelector);
 
         /// <summary>
         /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
         /// Returns a new Collection with this action included
         /// </summary>
-        // public ILiteCollection<T> Include(BsonExpression keySelector)=>Table.Include(keySelector);
+        public ILiteCollection<T> Include(BsonExpression keySelector) => Table.Include(keySelector);
 
         /// <summary>
         /// Insert or Update a document in this collection.
@@ -61,9 +65,16 @@ namespace IoTDBdotNET
         public bool Upsert(BsonValue id, T entity) => Table.Upsert(id, entity);
 
         /// <summary>
+        /// Enque update for background processing. No return.
+        /// </summary>
+        /// <param name="entity"></param>
+        public void UpdateQueue(T entity) => _updateEntityQueue.Enqueue(entity);
+
+        /// <summary>
         /// Update a document in this collection. Returns false if not found document in collection
         /// </summary>
         public bool Update(T entity) => Table.Update(entity);
+
 
         /// <summary>
         /// Update a document in this collection. Returns false if not found document in collection
@@ -86,6 +97,8 @@ namespace IoTDBdotNET
         /// Eg: col.UpdateMany(x => new Customer { Name = x.Name.ToUpper(), Salary: 100 }, x => x.Name == "John")
         /// </summary>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate) => Table.UpdateMany(extend, predicate);
+
+        public void InsertQueue(T entity) => _insertEntityQueue.Enqueue(entity);
 
         /// <summary>
         /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
@@ -343,15 +356,100 @@ namespace IoTDBdotNET
         public K Max<K>(Expression<Func<T, K>> keySelector) => Table.Max(keySelector);
         #endregion ILiteCollection
 
+        #region base functions
+
         protected override void InitializeDatabase()
         {
-            throw new NotImplementedException();
+            
         }
 
         protected override void PerformBackgroundWork(CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            if (!_updateEntityQueue.IsEmpty && !_processingQueue)
+            {
+                lock (SyncRoot)
+                {
+                    _processingQueue = true;
+                    try
+                    {
+                        CommitInsert();
+                        CommitUpdate();
+                    }
+                    catch (Exception ex)
+                    {
+                        OnExceptionOccurred(new(ex));
+                    }
+                    finally
+                    {
+                        _processingQueue = false;
+                    }
+                }
+            }
         }
+
+        private void CommitInsert()
+        {
+            int count = 0;
+            Dictionary<long, T> entityList = new();
+            List<long> id = new List<long>();
+            while (_insertEntityQueue.TryDequeue(out var entity) && count++ <= 1000)
+            {
+                var idProperty = typeof(T).GetProperty("Id");
+                if (idProperty == null)
+                {
+                    OnExceptionOccurred(new(new InvalidOperationException("Type T must have a property named 'Id'.")));
+                }
+                else
+                {
+                    long entityId = Convert.ToInt64(idProperty.GetValue(entity));
+                    if (entityId > 0)
+                    {
+                        entityId = 0;
+                    }
+
+                    entityList.Add(entityId, entity);
+
+                }
+            }
+            if (entityList.Count > 0)
+            {
+                var entities = Database.GetCollection<T>(_collectionName);
+                entities.InsertBulk(entityList.Select(x => x.Value).ToList(), entityList.Count);
+            }
+        }
+
+        private void CommitUpdate()
+        {
+            int count = 0;
+            Dictionary<long, T> entityList = new();
+            List<long> id = new List<long>();
+            while (_updateEntityQueue.TryDequeue(out var entity) && count++ <= 1000)
+            {
+                var idProperty = typeof(T).GetProperty("Id");
+                if (idProperty == null)
+                {
+                    OnExceptionOccurred(new(new InvalidOperationException("Type T must have a property named 'Id'.")));
+                }
+                else
+                {
+                    long entityId = Convert.ToInt64(idProperty.GetValue(entity));
+                    if (!entityList.ContainsKey(entityId))
+                    {
+                        entityList.Add(entityId, entity);
+                    }
+                    else
+                    {
+                        entityList[entityId] = entity;
+                    }
+                }
+            }
+            if (entityList.Count > 0)
+            {
+                var entities = Database.GetCollection<T>(_collectionName);
+                entities.Update(entityList.Select(x => x.Value).ToList());
+            }
+        }
+
 
         private static bool HasIdProperty()
         {
@@ -369,5 +467,6 @@ namespace IoTDBdotNET
 
             return false;
         }
+        #endregion base functions
     }
 }

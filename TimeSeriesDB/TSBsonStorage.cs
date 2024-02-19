@@ -5,9 +5,6 @@ namespace IoTDBdotNET
 {
     internal class TSBsonStorage : BaseDatabase
     {
-        public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
-
-
         private readonly string _collectionName = "TimeSeriesData";
         private readonly ConcurrentQueue<(long EntityIndex, BsonValue Value, DateTime Timestamp)> _queue = new();
 
