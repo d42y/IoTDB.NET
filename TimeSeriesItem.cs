@@ -1,16 +1,19 @@
 ﻿using LiteDB;
-using TeaTime;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace IoTDB.NET
+namespace IoTDBdotNET
 {
-    // Time series item structure
     public struct TimeSeriesItem
     {
-        public long Id { get; set; }
+        public string Guid { get; set; }
         public long EntityIndex { get; set; }
         public BsonValue Value { get; set; }
         public DateTime Timestamp { get; set; }
 
-        public DateTime ToLocalDateTime { get { return ((DateTime)Timestamp).ToLocalTime(); } }
+        public DateTime ToLocalDateTime => Timestamp.ToLocalTime();
     }
 }

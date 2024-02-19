@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IoTDB.NET
+namespace IoTDBdotNET
 {
     public class ExceptionEventArgs
     {
@@ -22,18 +22,19 @@ namespace IoTDB.NET
             {
                 Class = names.Value.ClassName;
                 Method = names.Value.MethodName;
-            } else
+            }
+            else
             {
                 Class = "Unknown";
                 Method = "Unknown";
             }
-            Type = exception.GetType().FullName??"";
+            Type = exception.GetType().FullName ?? "";
             Message = exception.Message;
             Timestamp = DateTime.UtcNow;
         }
 
         public DateTime ToLocalDateTime => Timestamp.ToLocalTime();
-        private (string  ClassName, string MethodName)? GetName(Exception ex)
+        private (string ClassName, string MethodName)? GetName(Exception ex)
         {
             string stackTrace = ex?.StackTrace ?? "";
             // Assuming the stack trace is not empty and in a standard format
@@ -42,7 +43,7 @@ namespace IoTDB.NET
                 // Split the stack trace into lines
                 string[] lines = stackTrace.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
                 // Get the first line of the stack trace, which typically contains the immediate method call that threw the exception
-                string firstLine = lines.FirstOrDefault()??"";
+                string firstLine = lines.FirstOrDefault() ?? "";
 
                 if (!string.IsNullOrEmpty(firstLine))
                 {
@@ -71,7 +72,7 @@ namespace IoTDB.NET
                         }
                     }
                 }
-               
+
             }
             return null;
         }

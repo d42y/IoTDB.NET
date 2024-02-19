@@ -1,4 +1,5 @@
-﻿using LiteDB;
+﻿using IoTDBdotNET;
+using LiteDB;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,19 +7,23 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IoTDB.NET.Base
+namespace IoTDBdotNET.Base
 {
     internal abstract class BaseDatabase : IDisposable
     {
         public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
         private readonly LiteDatabase _db;
+        private readonly int _numThreads;
+        protected int NumThreads { get { return _numThreads; } }
         private readonly object _syncRoot = new object();
         private CancellationTokenSource _cancellationTokenSource = new();
         private Task? _backgroundTask;
         private readonly double _backgroundTaskFromMilliseconds;
-        public BaseDatabase(string dbPath, double backgroundTaskFromMilliseconds = 100)
+        public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
         {
-            _db = new LiteDatabase(dbPath);
+            int logicalProcessorCount = Environment.ProcessorCount;
+            _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
+            _db = new LiteDatabase(Path.Combine(dbPath, $"{dbName}.db"));
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             StartBackgroundTask();
         }

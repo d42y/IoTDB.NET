@@ -2,14 +2,14 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
-using TeaTime; 
+using TeaTime;
 using System.IO;
 using System.Timers;
 using System.Reflection;
 
-namespace IoTDB.NET
+namespace IoTDBdotNET
 {
-    internal class TimeSeriesStorage : IDisposable
+    internal class TSNumericStorage : IDisposable
     {
         // Define the event based on the delegate
         public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
@@ -24,7 +24,7 @@ namespace IoTDB.NET
 
         private System.Timers.Timer dailyTimer;
 
-        public TimeSeriesStorage(string name, string basePath, bool createDirectoryIfNotExist = false)
+        public TSNumericStorage(string name, string basePath, bool createDirectoryIfNotExist = false)
         {
             if (!Directory.Exists(basePath))
             {
@@ -44,10 +44,10 @@ namespace IoTDB.NET
                     throw new DirectoryNotFoundException($"Directory not found. {basePath}");
                 }
             }
-            this._name = name;
+            _name = name;
             this.basePath = basePath;
-            this._queue = new ConcurrentQueue<(long id, double value, DateTime timestamp)>();
-            this.cancellationTokenSource = new CancellationTokenSource();
+            _queue = new ConcurrentQueue<(long id, double value, DateTime timestamp)>();
+            cancellationTokenSource = new CancellationTokenSource();
             StartBackgroundTask();
             // Initialize and start the daily timer
             InitializeDailyTask();
@@ -55,7 +55,7 @@ namespace IoTDB.NET
 
         private void StartBackgroundTask()
         {
-            this.writeTask = Task.Run(async () =>
+            writeTask = Task.Run(async () =>
             {
                 while (!cancellationTokenSource.Token.IsCancellationRequested)
                 {
@@ -91,7 +91,7 @@ namespace IoTDB.NET
         private void CheckAndPerformConsolidation(object? sender, ElapsedEventArgs e)
         {
             // Run at startup or if the current time is just after 1 AM
-            if (e == null || (DateTime.Now.Hour == 1 && DateTime.Now.Minute < 1))
+            if (e == null || DateTime.Now.Hour == 1 && DateTime.Now.Minute < 1)
             {
                 ConsolidateFiles();
             }
@@ -230,9 +230,9 @@ namespace IoTDB.NET
 
         //read
 
-        public List<TimeSeriesItem> GetData(List<long> ids, DateTime from, DateTime to)
+        public List<IoTDBdotNET.TSItem> GetData(List<long> ids, DateTime from, DateTime to)
         {
-            List<TimeSeriesItem>? items = null;
+            List<IoTDBdotNET.TSItem>? items = null;
             try
             {
                 if (from.Kind != DateTimeKind.Utc)
@@ -244,7 +244,7 @@ namespace IoTDB.NET
                     to = to.ToUniversalTime();
                 }
                 var files = Directory.GetFiles(basePath, $"{_name}_*.tea");
-                
+
                 foreach (var file in files)
                 {
                     var name = Path.GetFileNameWithoutExtension(file);
@@ -261,20 +261,20 @@ namespace IoTDB.NET
                 var memItems = ReadItemsFromFile(Path.Combine(basePath, "data", $"{_name}.tea"), ids, from, to);
                 if (memItems != null)
                 {
-                    if (items == null) { items = new List<TimeSeriesItem>(); }
+                    if (items == null) { items = new List<IoTDBdotNET.TSItem>(); }
                     items.AddRange(memItems);
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
-            return items??new();
-            
+            return items ?? new();
+
         }
 
-        private List<TimeSeriesItem> ReadItemsFromFile(string filePath, List<long> targetIds, DateTime from, DateTime to)
+        private List<IoTDBdotNET.TSItem> ReadItemsFromFile(string filePath, List<long> targetIds, DateTime from, DateTime to)
         {
             try
             {
-                var items = new List<TimeSeriesItem>();
+                var items = new List<IoTDBdotNET.TSItem>();
                 lock (_syncRoot) // Acquire the lock 
                 {
                     Time _from = from;
@@ -284,7 +284,7 @@ namespace IoTDB.NET
                         var tsItems = tf.Items.Where(item => targetIds.Contains(item.EntityId) && item.Timestamp >= _from && item.Timestamp <= _to).ToList();
                         foreach (var tsItem in tsItems)
                         {
-                            items.Add(new() { EntityIndex = tsItem.EntityId, Value = tsItem.Value, Timestamp = tsItem.ToDateTime});
+                            items.Add(new() { EntityIndex = tsItem.EntityId, Value = tsItem.Value, Timestamp = tsItem.ToDateTime });
                         }
                     }
                 }

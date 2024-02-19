@@ -4,16 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IoTDB.NET
+namespace IoTDBdotNET
 {
     public enum IntervalType
     {
         Seconds,
         Minutes,
-        Hours, 
+        Hours,
         Days,
-        Weeks, 
-        Months, 
-        Years 
+        Weeks,
+        Months,
+        Years
     }
 }

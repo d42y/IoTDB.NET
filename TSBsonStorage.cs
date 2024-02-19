@@ -1,4 +1,4 @@
-﻿using IoTDB.NET.Base;
+﻿using IoTDBdotNET.Base;
 using LiteDB;
 using System;
 using System.Collections.Concurrent;
@@ -7,9 +7,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IoTDB.NET
+namespace IoTDBdotNET
 {
-    internal class LiteDBTimeSeriesStorage : BaseDatabase
+    internal class TSBsonStorage : BaseDatabase
     {
         public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
 
@@ -19,7 +19,7 @@ namespace IoTDB.NET
 
         private bool _queueProcessing = false;
 
-        public LiteDBTimeSeriesStorage(string databasePath) :base(databasePath, 10)
+        public TSBsonStorage(string databasePath, string name) : base(databasePath, name, 10)
         {
 
         }
@@ -31,7 +31,7 @@ namespace IoTDB.NET
 
                 if (_queue.Count > 0 && !_queueProcessing)
                 {
-                    
+
                     try
                     {
                         FlushQueue();
@@ -67,7 +67,7 @@ namespace IoTDB.NET
                     const int MaxItemsPerFlush = 5000; // Adjust this value as needed
                     int itemsProcessed = 0;
 
-                    List<TimeSeriesItem> items = new List<TimeSeriesItem>();
+                    List<TSItem> items = new List<TSItem>();
                     while (_queue.TryDequeue(out var item) && itemsProcessed <= MaxItemsPerFlush)
                     {
 
@@ -76,7 +76,7 @@ namespace IoTDB.NET
                     }
                     if (items.Count > 0)
                     {
-                        var collection = Database.GetCollection<TimeSeriesItem>("Timeseries");
+                        var collection = Database.GetCollection<TSItem>("Timeseries");
                         collection.Insert(items);
                         //Database.Commit(); do not need to do LiteDB auto commit
                     }
@@ -88,7 +88,7 @@ namespace IoTDB.NET
             }
         }
 
-        public IEnumerable<TimeSeriesItem> GetData(int id, DateTime from, DateTime to)
+        public IEnumerable<TSItem> GetData(long id, DateTime from, DateTime to)
         {
             try
             {
@@ -102,7 +102,7 @@ namespace IoTDB.NET
                     {
                         to = to.ToUniversalTime();
                     }
-                    var collection = Database.GetCollection<TimeSeriesItem>(_collectionName);
+                    var collection = Database.GetCollection<TSItem>(_collectionName);
                     var query = collection.Query()
                         .Where(x => x.Id == id && x.Timestamp >= from && x.Timestamp <= to)
                         .ToEnumerable();
@@ -110,7 +110,32 @@ namespace IoTDB.NET
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
-            return new List<TimeSeriesItem>();
+            return new List<TSItem>();
+        }
+
+        public IEnumerable<TSItem> GetData(List<long> ids, DateTime from, DateTime to)
+        {
+            try
+            {
+                lock (SyncRoot)
+                {
+                    if (from.Kind != DateTimeKind.Utc)
+                    {
+                        from = from.ToUniversalTime();
+                    }
+                    if (to.Kind != DateTimeKind.Utc)
+                    {
+                        to = to.ToUniversalTime();
+                    }
+                    var collection = Database.GetCollection<TSItem>(_collectionName);
+                    var query = collection.Query()
+                        .Where(x => ids.Contains(x.Id) && x.Timestamp >= from && x.Timestamp <= to)
+                        .ToEnumerable();
+                    return query;
+                }
+            }
+            catch (Exception ex) { OnExceptionOccurred(new(ex)); }
+            return new List<TSItem>();
         }
 
         protected override void InitializeDatabase()
