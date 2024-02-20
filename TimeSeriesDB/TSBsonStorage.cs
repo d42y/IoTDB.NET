@@ -67,7 +67,7 @@ namespace IoTDBdotNET
                     }
                     if (items.Count > 0)
                     {
-                        var collection = Database.GetCollection<TSItem>("Timeseries");
+                        var collection = Database.GetCollection<TSItem>(_collectionName);
                         collection.Insert(items);
                         //Database.Commit(); do not need to do LiteDB auto commit
                     }

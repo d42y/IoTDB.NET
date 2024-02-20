@@ -37,10 +37,11 @@ namespace IoTDBdotNET
 
         private void InitializeTimeSeriesStorages(string dbPathName)
         {
+            var tsPath = Path.Combine(dbPathName, "TimeSeries");
             for (int i = 1; i <= NumThreads; i++)
             {
-                _numericStorage[i] = new TSNumericStorage(i.ToString(), Path.Combine(dbPathName, $"TimeSeries"), true);
-                _bsonStorage[i] = new TSBsonStorage(Path.Combine(dbPathName, "TimeSeries"), $"{i}_TimeSeries.db");
+                _numericStorage[i] = new TSNumericStorage(i.ToString(), tsPath, true);
+                _bsonStorage[i] = new TSBsonStorage(tsPath, $"{i}_BsonSeries");
             }
         }
         #endregion Init
@@ -90,11 +91,15 @@ namespace IoTDBdotNET
 
         public void Insert(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
+            if (timestamp == default) timestamp = DateTime.UtcNow;
             InsertAsync(guid, value, timestamp, timeSeries).Wait();
         }
 
         public async Task InsertAsync(string guid, BsonValue value, DateTime timestamp = default, bool timeSeries = true)
         {
+           
+            if (timestamp == default) timestamp = DateTime.UtcNow;
+            if (timestamp.Kind != DateTimeKind.Utc) timestamp = timestamp.ToUniversalTime();
             Entity? entity = null;
             if (_entities.ContainsKey(guid))
             {
@@ -106,11 +111,15 @@ namespace IoTDBdotNET
             else
             {
                 entity = AddUpdateEntity(guid, value, timestamp);
-                if (entity == null) throw new Exception($"Unable to create entity for GUID: [{guid}]");
+                if (entity == null)
+                {
+                    entity = GetEntity(guid);
+                    if (entity == null) throw new Exception($"Unable to create entity for GUID: [{guid}]");
+                }
                 _entities[guid] = entity;
             }
 
-            if (timestamp.Kind != DateTimeKind.Utc) timestamp = DateTime.UtcNow;
+            
 
             var storageKey = GetRoundRobinStorageKey();
             if (value.IsNumber && timeSeries)
@@ -250,7 +259,7 @@ namespace IoTDBdotNET
                 {
                     entity = new Entity { Guid = guid, Value = value, Timestamp = timestamp };
                     var id = entities.Insert(entity);
-                    return entity;
+                   
                 }
                 else
                 {

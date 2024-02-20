@@ -17,7 +17,9 @@ namespace IoTDBdotNET
         {
             int logicalProcessorCount = Environment.ProcessorCount;
             _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
-            _db = new LiteDatabase(Path.Combine(dbPath, $"{dbName}.db"));
+            var name = dbName;
+            if (dbName.ToLower().EndsWith(".db")) name = Path.GetFileNameWithoutExtension(dbName);
+            _db = new LiteDatabase(Path.Combine(dbPath, $"{name}.db"));
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             StartBackgroundTask();
         }
