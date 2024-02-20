@@ -1,5 +1,7 @@
 ﻿using System.Collections.Concurrent;
+using System.IO;
 using System.Timers;
+using System.Xml.Linq;
 
 namespace IoTDBdotNET
 {
@@ -185,21 +187,7 @@ namespace IoTDBdotNET
 
                     foreach (var file in openFiles)
                     {
-                        List<TeaItem> itemsToWrite = file.Value;
-                        if (File.Exists(file.Key))
-                        {
-                            using (var tf = TeaFile<TeaItem>.Append(file.Key))
-                            {
-                                tf.Write(itemsToWrite);
-                            }
-                        }
-                        else
-                        {
-                            using (var tf = TeaFile<TeaItem>.Create(file.Key))
-                            {
-                                tf.Write(itemsToWrite);
-                            }
-                        }
+                        ProcessFile(file.Key, file.Value);
                     }
 
                 }
@@ -209,8 +197,111 @@ namespace IoTDBdotNET
             }
         }
 
+        private void ProcessFile(string filePath, List<TeaItem> itemsToWrite)
+        {
+            var name = Path.GetFileNameWithoutExtension(filePath);
+            var path = Path.GetDirectoryName(filePath);
+            var savedFile = Path.Combine(path, $"{name}.+tea");
+            var backupFile = Path.Combine(path, $"{name}.-tea");
+            if (File.Exists(filePath))
+            {
+                //create a copy of the main file if no save
+                if (!File.Exists(savedFile))
+                {
+                    File.Copy(filePath, savedFile, true);
+                }
+                
+                //begin write
+                try
+                {
+                    AppendItemsToFile(filePath, itemsToWrite);
+                }
+                catch (Exception ex) //write file corrupted
+                {
+                    OnExceptionOccurred(new(ex));
+                    if (File.Exists(savedFile))
+                    {
+                        File.Copy(savedFile, filePath, true); //restore from saved file
+                        try
+                        {
+                            AppendItemsToFile(filePath, itemsToWrite);
+                        }
+                        catch (Exception ex2) //main file corruped
+                        {
+                            OnExceptionOccurred(new(ex2));
+                            if (File.Exists(backupFile))
+                            {
+                                File.Copy(backupFile, filePath, true); //restore from backup
+                                try
+                                {
+                                    AppendItemsToFile(filePath, itemsToWrite);
+                                   
+                                } catch (Exception ex3)
+                                {
+                                    OnExceptionOccurred(new(ex3));
+                                    ProcessCorruptFile(filePath, itemsToWrite);
+                                }
+                            }
+                            else //no saveFile and no backup
+                            {
+                                ProcessCorruptFile(filePath, itemsToWrite);
+                            }
+                        }
+                    }
+                    else //no saveFile and no backup
+                    {
+                        ProcessCorruptFile(filePath, itemsToWrite);
+                    }
+                }
+            }
+            else
+            {
+                CreateItemsToNewFile(filePath, itemsToWrite);
+                
+            }
 
+            //make a backup
+            UpdateBackupFile(filePath, savedFile, backupFile);
+            
+        }
 
+        private void AppendItemsToFile(string filePath, List<TeaItem> itemsToWrite)
+        {
+            using (var tf = TeaFile<TeaItem>.Append(filePath))
+            {
+                tf.Write(itemsToWrite);
+            }
+        }
+
+        private void CreateItemsToNewFile(string filePath, List<TeaItem> itemsToWrite)
+        {
+            using (var tf = TeaFile<TeaItem>.Create(filePath))
+            {
+                tf.Write(itemsToWrite);
+            }
+        }
+
+        private void UpdateBackupFile(string originalFile, string savedFile, string backupFile)
+        {
+            // Replace the backup file with the current state of the original file
+            if (File.Exists(originalFile))
+            {
+                File.Replace(originalFile, savedFile, backupFile, true);
+            }
+        }
+
+        private void ProcessCorruptFile(string filePath, List<TeaItem> itemsToWrite)
+        {
+            var name = Path.GetFileNameWithoutExtension(filePath);
+            var path = Path.GetDirectoryName(filePath);
+            var corruptPath = Path.Combine(path, "Corrupted");
+            if (!Directory.Exists(corruptPath)) Directory.CreateDirectory(corruptPath);
+            var corruptFile = Path.Combine(corruptPath, $"{name}_{DateTime.Now.ToString("yyyy_MM_dd_mm_ss")}.bad");
+            File.Move(filePath, corruptFile, true); //move file
+
+            //create new file and write
+            CreateItemsToNewFile(filePath, itemsToWrite);
+        }
 
         private string GetFilePathForItem(DateTime timestamp)
         {
