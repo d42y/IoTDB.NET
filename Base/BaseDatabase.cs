@@ -1,36 +1,42 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 
 namespace IoTDBdotNET
 {
     internal abstract class BaseDatabase : IDisposable
     {
-        public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
-        private readonly LiteDatabase _db;
+        public event EventHandler<ExceptionEventArgs>? ExceptionOccurred;
+        //private readonly LiteDatabase _db;
         private readonly int _numThreads;
         protected int NumThreads { get { return _numThreads; } }
         private readonly object _syncRoot = new object();
         private CancellationTokenSource _cancellationTokenSource = new();
         private Task? _backgroundTask;
         private readonly double _backgroundTaskFromMilliseconds;
+        private readonly string _dbName;
+        private readonly string _dbPath;
+        protected string ConnectionString { get; private set; }
         public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
         {
             int logicalProcessorCount = Environment.ProcessorCount;
             _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
-            var name = dbName;
-            if (dbName.ToLower().EndsWith(".db")) name = Path.GetFileNameWithoutExtension(dbName);
-            _db = new LiteDatabase(Path.Combine(dbPath, $"{name}.db"));
+            _dbName = dbName;
+            _dbPath = dbPath;
+            if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
+            ConnectionString = Path.Combine(dbPath, $"{_dbName}.db");
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             StartBackgroundTask();
         }
 
-        protected LiteDatabase Database { get { return _db; } }
+        //protected ILiteDatabase Database { get { return new LiteDatabase(Path.Combine(_dbPath, $"{_dbName}.db")); } }
         protected CancellationTokenSource CancellationTokenSource { get { return _cancellationTokenSource; } }
         protected object SyncRoot { get { return _syncRoot; } }
         // Method to raise the event
         protected virtual void OnExceptionOccurred(ExceptionEventArgs e)
         {
             ExceptionOccurred?.Invoke(this, e);
+            
         }
 
         protected virtual void StartBackgroundTask()
@@ -107,7 +113,6 @@ namespace IoTDBdotNET
         public void Dispose()
         {
             StopBackgroundTask();
-            _db?.Dispose();
         }
     }
 }

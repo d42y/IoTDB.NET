@@ -49,7 +49,7 @@ namespace IoTDBdotNET
     ///     object v = item.Values[2];  // we might not always know this at compile time. If we know it,
     ///                                 // a casts can be added:
     ///     Time tt = (Time) item.Values[0];
-    ///     Console.WriteLine(item);    // The implicit call of ToString() here will cause the output:
+    ///     Console.Out.WriteLineAsync(item);    // The implicit call of ToString() here will cause the output:
     ///                                 // 4.3.2000, 12.34, 7200
     /// }
     /// </code>

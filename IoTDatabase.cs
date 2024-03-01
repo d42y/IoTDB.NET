@@ -5,7 +5,7 @@ namespace IoTDBdotNET
     public class IoTDatabase
     {
         // Define the event based on the delegate
-        public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
+        public event EventHandler<ExceptionEventArgs>? ExceptionOccurred;
 
         private readonly string _dbPath;
         public ITimeSeriesDatabase TimeSeries { get; }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 
 namespace IoTDBdotNET
 {
@@ -8,14 +9,17 @@ namespace IoTDBdotNET
         private ConcurrentDictionary<long, TSNumericStorage> _numericStorage { get; } = new();
         private ConcurrentDictionary<long, TSBsonStorage> _bsonStorage { get; } = new();
         private ConcurrentDictionary<string, Entity> _entities { get; } = new();
-        private ConcurrentQueue<string> _updateEntityQueue = new ConcurrentQueue<string>();
+        private ConcurrentQueue<(string guid, BsonValue value, DateTime timestamp, bool timeseries)> _updateEntityQueue = new ();
         private bool _processingQueue = false;
         private int _roundRobinCounter = 0; // Added for round-robin storage selection
+
+        private readonly int _maxItemsPerFlush;
 
         public TimeSeriesDatabase(string dbPath) : base(dbPath, "index")
         {
             try
             {
+                _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
                 InitializeDatabase();
                 InitializeTimeSeriesStorages(dbPath);
             }
@@ -28,8 +32,13 @@ namespace IoTDBdotNET
         {
             try
             {
-                var entities = Database.GetCollection<Entity>(_collectionName);
-                entities.EnsureIndex(x => x.Guid, true);
+                using (var db = new LiteDatabase(ConnectionString))
+                {
+
+
+                    var entities = db.GetCollection<Entity>(_collectionName);
+                    entities.EnsureIndex(x => x.Guid, true);
+                }
 
             }
             catch (Exception ex) { throw new Exception($"Failed to initialize database. {ex.Message}"); }
@@ -56,26 +65,75 @@ namespace IoTDBdotNET
                     _processingQueue = true;
                     try
                     {
-                        int count = 0;
-                        Dictionary<string, Entity> entityList = new();
-                        List<string> guids = new List<string>();
-                        while (_updateEntityQueue.TryDequeue(out var guid) && count++ <= 100)
+                        using (var db = new LiteDatabase(ConnectionString))
                         {
-                            if (!entityList.ContainsKey(guid))
+                            var entitites = db.GetCollection<Entity>(_collectionName);
+                            int count = 0;
+                            Dictionary<string, Entity> entityList = new();
+                            List<string> guids = new List<string>();
+                            while (_updateEntityQueue.TryDequeue(out var updateEntity) && count++ <= _maxItemsPerFlush)
                             {
-                                entityList.Add(guid, new());
-                            }
-                            if (_entities.TryGetValue(guid, out var entity))
-                            {
-                                entityList[guid] = entity;
-                            }
-                        }
-                        if (entityList.Count > 0)
-                        {
-                            var entitites = Database.GetCollection<Entity>(_collectionName);
-                            entitites.Update(entityList.Select(x => x.Value).ToList());
-                        }
+                                try
+                                {
+                                    Entity? entity = null;
+                                    if (_entities.ContainsKey(updateEntity.guid))
+                                    {
+                                        entity = _entities[updateEntity.guid];
+                                        entity.Value = updateEntity.value;
+                                        entity.Timestamp = updateEntity.timestamp;
+                                    }
 
+                                    if (entity == null || entity.Id == 0)
+                                    {
+                                        entity = new()
+                                        {
+                                            Guid = updateEntity.guid,
+                                            Value = updateEntity.value,
+                                            Timestamp = updateEntity.timestamp
+                                        };
+                                        entity = AddUpdateEntity(updateEntity.guid, updateEntity.value, updateEntity.timestamp, entitites);
+                                        if (entity == null)
+                                        {
+                                            entity = GetEntity(updateEntity.guid);
+                                            if (entity == null && _entities.ContainsKey(updateEntity.guid)) entity = _entities[updateEntity.guid];
+                                            if (entity == null) break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (entityList.ContainsKey(entity.Guid))
+                                        {
+                                            entityList[entity.Guid] = entity;
+                                        }
+                                        else
+                                        {
+                                            entityList.Add(entity.Guid, entity);
+                                        }
+                                    }
+
+                                    if (updateEntity.timeseries)
+                                    {
+                                        var storageKey = GetRoundRobinStorageKey();
+                                        if (entity.Value.IsNumber)
+                                        {
+                                            var selectedTimeSeriesStorage = _numericStorage[storageKey];
+                                            selectedTimeSeriesStorage.Add(entity.Id, entity.Value.AsDouble, entity.Timestamp);
+                                        }
+                                        else
+                                        {
+                                            var selectedTimeSeriesStorage = _bsonStorage[storageKey];
+                                            selectedTimeSeriesStorage.Add(entity.Id, entity.Value, entity.Timestamp);
+                                        }
+                                    }
+                                }
+                                catch { _updateEntityQueue.Enqueue(updateEntity); }
+                            }
+                            if (entityList.Count > 0)
+                            {
+
+                                entitites.Update(entityList.Select(x => x.Value).ToList());
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -100,38 +158,8 @@ namespace IoTDBdotNET
            
             if (timestamp == default) timestamp = DateTime.UtcNow;
             if (timestamp.Kind != DateTimeKind.Utc) timestamp = timestamp.ToUniversalTime();
-            Entity? entity = null;
-            if (_entities.ContainsKey(guid))
-            {
-                entity = _entities[guid];
-                entity.Value = value;
-                entity.Timestamp = timestamp;
-                await Task.Run(() => _updateEntityQueue.Enqueue(guid));
-            }
-            else
-            {
-                entity = AddUpdateEntity(guid, value, timestamp);
-                if (entity == null)
-                {
-                    entity = GetEntity(guid);
-                    if (entity == null) throw new Exception($"Unable to create entity for GUID: [{guid}]");
-                }
-                _entities[guid] = entity;
-            }
-
+            await Task.Run(() => _updateEntityQueue.Enqueue((guid, value, timestamp, timeSeries)));
             
-
-            var storageKey = GetRoundRobinStorageKey();
-            if (value.IsNumber && timeSeries)
-            {
-                var selectedTimeSeriesStorage = _numericStorage[storageKey];
-                selectedTimeSeriesStorage.Add(entity.Id, value.AsDouble, timestamp);
-            }
-            else
-            {
-                var selectedTimeSeriesStorage = _bsonStorage[storageKey];
-                selectedTimeSeriesStorage.Add(entity.Id, value, timestamp);
-            }
         }
 
         #endregion Insert
@@ -249,11 +277,11 @@ namespace IoTDBdotNET
         #endregion Get
 
         #region Entities
-        private Entity? AddUpdateEntity(string guid, BsonValue value, DateTime timestamp)
+        private Entity? AddUpdateEntity(string guid, BsonValue value, DateTime timestamp, ILiteCollection<Entity> entities)
         {
             try
             {
-                var entities = Database.GetCollection<Entity>(_collectionName);
+
                 var entity = entities.FindOne(e => e.Guid == guid);
                 if (entity == null)
                 {
@@ -267,6 +295,7 @@ namespace IoTDBdotNET
                     entity.Timestamp = timestamp;
                     entities.Update(entity);
                 }
+                _entities[entity.Guid] = entity;
                 //return existing entity
                 return entity;
             }
@@ -278,12 +307,15 @@ namespace IoTDBdotNET
         {
             try
             {
+                using (var db = new LiteDatabase(ConnectionString))
+                {
+                    var entities = db.GetCollection<Entity>(_collectionName);
 
-                var entities = Database.GetCollection<Entity>(_collectionName);
-
-                // Find the entity by its Id
-                var entity = entities.FindOne(e => e.Id == id);
-                return entity;
+                    // Find the entity by its Id
+                    var entity = entities.FindOne(e => e.Id == id);
+                    return entity;
+                }
+                
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             return null; // If no entity is found, return null
@@ -294,12 +326,15 @@ namespace IoTDBdotNET
         {
             try
             {
+                using (var db = new LiteDatabase(ConnectionString))
+                {
+                    var entities = db.GetCollection<Entity>(_collectionName);
 
-                var entities = Database.GetCollection<Entity>(_collectionName);
-
-                // Find the entity by its Id
-                var entity = entities.FindOne(e => e.Guid == guid);
-                return entity;
+                    // Find the entity by its Id
+                    var entity = entities.FindOne(e => e.Guid == guid);
+                    _entities[entity.Guid] = entity;
+                    return entity;
+                }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             return null; // If no entity is found, return null
@@ -311,12 +346,15 @@ namespace IoTDBdotNET
         {
             try
             {
-                var entities = Database.GetCollection<Entity>(_collectionName);
-                var entity = entities.FindOne(e => e.Id == id);
-                if (entity != null)
+                using (var db = new LiteDatabase(ConnectionString))
                 {
-                    entity.Guid = newGuid;
-                    entities.Update(entity);
+                    var entities = db.GetCollection<Entity>(_collectionName);
+                    var entity = entities.FindOne(e => e.Id == id);
+                    if (entity != null)
+                    {
+                        entity.Guid = newGuid;
+                        entities.Update(entity);
+                    }
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -326,14 +364,17 @@ namespace IoTDBdotNET
         {
             try
             {
-                var entities = Database.GetCollection<Entity>(_collectionName);
-
-                // First, find the entity to get its GUID
-                var entity = entities.FindById(id);
-                if (entity != null)
+                using (var db = new LiteDatabase(ConnectionString))
                 {
-                    // Delete the entity by ID
-                    entities.Delete(id);
+                    var entities = db.GetCollection<Entity>(_collectionName);
+
+                    // First, find the entity to get its GUID
+                    var entity = entities.FindById(id);
+                    if (entity != null)
+                    {
+                        // Delete the entity by ID
+                        entities.Delete(id);
+                    }
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -343,9 +384,12 @@ namespace IoTDBdotNET
         {
             try
             {
-                var entities = Database.GetCollection<Entity>(_collectionName);
-                // Delete the entity by GUID
-                var entityDeleted = entities.DeleteMany(e => e.Guid == guid) > 0;
+                using (var db = new LiteDatabase(ConnectionString))
+                {
+                    var entities = db.GetCollection<Entity>(_collectionName);
+                    // Delete the entity by GUID
+                    var entityDeleted = entities.DeleteMany(e => e.Guid == guid) > 0;
+                }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
@@ -399,8 +443,8 @@ namespace IoTDBdotNET
         // Helper classes to represent documents in LiteDB
         private class Entity
         {
-            public long Id { get; set; }
-            public string Guid { get; set; }
+            public long Id { get; set; } = 0;
+            public string Guid { get; set; } = string.Empty;
             public BsonValue Value { get; set; } = BsonValue.Null;
             public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         }

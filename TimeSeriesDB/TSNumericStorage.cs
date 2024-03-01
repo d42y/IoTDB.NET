@@ -8,7 +8,10 @@ namespace IoTDBdotNET
     internal class TSNumericStorage : IDisposable
     {
         // Define the event based on the delegate
-        public event EventHandler<ExceptionEventArgs> ExceptionOccurred;
+        public event EventHandler<ExceptionEventArgs>? ExceptionOccurred;
+
+        
+        private Dictionary<string, TeaFile<TeaItem>> _TeaFiles = new();
 
         private string _name;
         private string basePath;
@@ -17,8 +20,8 @@ namespace IoTDBdotNET
         private Task? writeTask;
         private bool _queueProcessing = false;
         private readonly object _syncRoot = new object();
-
-        private System.Timers.Timer dailyTimer;
+        private readonly int _maxItemsPerFlush;
+        private System.Timers.Timer? dailyTimer;
 
         public TSNumericStorage(string name, string basePath, bool createDirectoryIfNotExist = false)
         {
@@ -41,6 +44,7 @@ namespace IoTDBdotNET
                 }
             }
             _name = name;
+            _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
             this.basePath = basePath;
             _queue = new ConcurrentQueue<(long id, double value, DateTime timestamp)>();
             cancellationTokenSource = new CancellationTokenSource();
@@ -49,6 +53,39 @@ namespace IoTDBdotNET
             InitializeDailyTask();
         }
 
+        //private TeaFile<TeaItem> OpenFile(string path, bool write = false)
+        //{
+        //    lock(_fileLockObject)
+        //    {
+        //        if (write)
+        //        {
+        //            if (_openWriteTeaFiles.ContainsKey(path))
+        //            {
+        //                return _openWriteTeaFiles[path];
+        //            } else if (_openReadTeaFiles.ContainsKey(path))
+        //            {
+        //                var tf = _openReadTeaFiles[path];
+        //                tf.Dispose();
+        //                _openReadTeaFiles.Remove(path);
+        //            }
+
+        //            if (File.Exists(path))
+        //            {
+        //                // If the target file exists, append items to it
+        //                var tf = TeaFile<TeaItem>.Append(path);
+        //                _openWriteTeaFiles[path] = tf;
+        //            }
+        //            else
+        //            {
+        //                // If the target file does not exist, create it and write items
+        //                var tf = TeaFile<TeaItem>.Create(path);
+        //                _openWriteTeaFiles[path] = tf;
+        //            }
+        //            return _openWriteTeaFiles[path];
+        //        }
+        //    }
+        //}
+        
         private void StartBackgroundTask()
         {
             writeTask = Task.Run(async () =>
@@ -84,7 +121,7 @@ namespace IoTDBdotNET
             Task.Run(() => CheckAndPerformConsolidation(this, null));
         }
 
-        private void CheckAndPerformConsolidation(object? sender, ElapsedEventArgs e)
+        private void CheckAndPerformConsolidation(object? sender, ElapsedEventArgs? e)
         {
             // Run at startup or if the current time is just after 1 AM
             if (e == null || DateTime.Now.Hour == 1 && DateTime.Now.Minute < 1)
@@ -123,10 +160,9 @@ namespace IoTDBdotNET
                                 // If the target file exists, append items to it
                                 using (var targetTeaFile = TeaFile<TeaItem>.Append(targetFilePath))
                                 {
-                                    foreach (var item in items)
-                                    {
-                                        targetTeaFile.Write(item);
-                                    }
+
+                                    targetTeaFile.Write(items);
+
                                 }
                             }
                             else
@@ -134,16 +170,22 @@ namespace IoTDBdotNET
                                 // If the target file does not exist, create it and write items
                                 using (var targetTeaFile = TeaFile<TeaItem>.Create(targetFilePath))
                                 {
-                                    foreach (var item in items)
-                                    {
-                                        targetTeaFile.Write(item);
-                                    }
+                                    targetTeaFile.Write(items);
                                 }
                             }
                         }
 
                         // Delete the old file after successful consolidation
-                        File.Delete(oldFile);
+                        if (File.Exists(oldFile))
+                        {
+                            File.Delete(oldFile);
+                            var path = Path.GetDirectoryName(oldFile)??"";
+                            var name = Path.GetFileNameWithoutExtension(oldFile);
+                            var workingFile = Path.Combine(path, $"{name}-log.+tea");
+                            var backupFile = Path.Combine(path, $"{name}.-tea");
+                            if (File.Exists(workingFile)) File.Delete(workingFile);
+                            if (File.Exists(backupFile)) File.Delete(backupFile);
+                        }
                     }
                 }
             }
@@ -170,11 +212,11 @@ namespace IoTDBdotNET
                 {
 
                     _queueProcessing = true;
-                    const int MaxItemsPerFlush = 5000; // Adjust this value as needed
+                    //const int MaxItemsPerFlush = 5000; // Adjust this value as needed
                     Dictionary<string, List<TeaItem>> openFiles = new();
                     int itemsProcessed = 0;
 
-                    while (itemsProcessed <= MaxItemsPerFlush && _queue.TryDequeue(out var item))
+                    while (itemsProcessed <= _maxItemsPerFlush && _queue.TryDequeue(out var item))
                     {
                         var filePath = GetFilePathForItem(item.timestamp);
                         if (!openFiles.ContainsKey(filePath))
@@ -200,7 +242,8 @@ namespace IoTDBdotNET
         private void ProcessFile(string filePath, List<TeaItem> itemsToWrite)
         {
             var name = Path.GetFileNameWithoutExtension(filePath);
-            var path = Path.GetDirectoryName(filePath);
+            var path = Path.GetDirectoryName(filePath)??"";
+
             var savedFile = Path.Combine(path, $"{name}-log.+tea");
             var backupFile = Path.Combine(path, $"{name}.-tea");
 
@@ -277,23 +320,18 @@ namespace IoTDBdotNET
                 using (var tf = TeaFile<TeaItem>.Append(filePath))
                 {
                     tf.Write(itemsToWrite);
+                    if (_queue.Count == 0) tf.Close();
                 }
             } else
             {
                 using (var tf = TeaFile<TeaItem>.Create(filePath))
                 {
                     tf.Write(itemsToWrite);
+                    if (_queue.Count == 0) tf.Close();
                 }
             }
         }
 
-        private void CreateItemsToNewFile(string filePath, List<TeaItem> itemsToWrite)
-        {
-            using (var tf = TeaFile<TeaItem>.Create(filePath))
-            {
-                tf.Write(itemsToWrite);
-            }
-        }
 
         private void UpdateBackupFile(string origionalFile, string savedFile, string backupFile, TimeSpan timespan)
         {
@@ -325,14 +363,14 @@ namespace IoTDBdotNET
         private void ProcessCorruptFile(string filePath, List<TeaItem> itemsToWrite)
         {
             var name = Path.GetFileNameWithoutExtension(filePath);
-            var path = Path.GetDirectoryName(filePath);
+            var path = Path.GetDirectoryName(filePath) ?? "";
             var corruptPath = Path.Combine(path, "Corrupted");
             if (!Directory.Exists(corruptPath)) Directory.CreateDirectory(corruptPath);
             var corruptFile = Path.Combine(corruptPath, $"{name}_{DateTime.Now.ToString("yyyy_MM_dd_mm_ss")}.bad");
             File.Move(filePath, corruptFile, true); //move file
 
             //create new file and write
-            CreateItemsToNewFile(filePath, itemsToWrite);
+            AppendItemsToFile(filePath, itemsToWrite);
         }
 
         private bool IsFileNewerThan(string filePath1, string filePath2, TimeSpan timeSpan)
@@ -423,7 +461,7 @@ namespace IoTDBdotNET
                         {
                             items.Add(new() { EntityIndex = tsItem.EntityId, Value = tsItem.Value, Timestamp = tsItem.ToDateTime });
                         }
-                      
+                        tf.Close();
                     }
                 }
             }

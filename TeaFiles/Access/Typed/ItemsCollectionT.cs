@@ -34,8 +34,8 @@ namespace IoTDBdotNET
     /// {
     ///		foreach(OHLCV item in teaFile.Items)
     ///		{
-    ///			Console.WriteLine(item.Time);
-    ///			Console.WriteLine(item.Open);
+    ///			Console.Out.WriteLineAsync(item.Time);
+    ///			Console.Out.WriteLineAsync(item.Open);
     ///		}
     /// }
     /// </code>

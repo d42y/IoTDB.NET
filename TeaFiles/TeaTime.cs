@@ -27,7 +27,7 @@ namespace IoTDBdotNET
     /// using (var tf = TeaFile&lt;Tick&gt;.OpenRead("gold.tea"))
     /// {
     ///     Tick value = tf.Read();
-    ///     Console.WriteLine(value);
+    ///     Console.Out.WriteLineAsync(value);
     /// }
     /// </code>
     /// </example>
@@ -39,7 +39,7 @@ namespace IoTDBdotNET
     /// {                
     ///     foreach(Item item in tf.Items)
     ///     {
-    ///         Console.WriteLine(tf.Description.ItemDescription.GetNameValueString(item));
+    ///         Console.Out.WriteLineAsync(tf.Description.ItemDescription.GetNameValueString(item));
     ///     }
     /// }
     /// 

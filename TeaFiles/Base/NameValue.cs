@@ -118,7 +118,7 @@ namespace IoTDBdotNET
         /// is stored as integer, double or string. Then the code
         /// <code>
         /// object n = tf.Description.NameValues.GetValue&lt;object&gt;();
-        /// Console.WriteLine(n);
+        /// Console.Out.WriteLineAsync(n);
         /// </code>
         /// will return the value as plain object.
         /// </remarks>

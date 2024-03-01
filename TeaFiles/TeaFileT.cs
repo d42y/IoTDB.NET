@@ -325,6 +325,7 @@ namespace IoTDBdotNET
         public void Write(T item)
         {
             this.buffer.Write(item);
+            
         }
 
         /// <summary>Writes several items in to the file. </summary>

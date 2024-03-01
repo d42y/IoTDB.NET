@@ -93,7 +93,7 @@ var result = await iotData.GetAsync(entityId); //Get last value
 
 if (result.HasValue)
 {
-    Console.WriteLine($"Value: {result.Value.Value}, Timestamp: {result.Value.Timestamp}");
+    Console.Out.WriteLineAsync($"Value: {result.Value.Value}, Timestamp: {result.Value.Timestamp}");
 }
 ```
 
@@ -109,12 +109,12 @@ DateTime to = DateTime.Now;
 var timeSeriesData = await iotData.GetAsync(entityIds, from, to);
 foreach (var item in timeSeriesData)
 {
-    Console.WriteLine($"Entity ID: {item.Key}");
+    Console.Out.WriteLineAsync($"Entity ID: {item.Key}");
     foreach (var data in item.Value)
     {
         // The Timestamp property of a TimeSeriesItem is not directly represented as a C# DateTime object. 
         // To obtain a DateTime representation, you can utilize the .ToDateTime method for UTC time or .ToLocalDateTime for local time 
-        Console.WriteLine($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
+        Console.Out.WriteLineAsync($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
     }
 }
 ```
@@ -135,10 +135,10 @@ IntervalType itype = IntervalType.Seconds;
 var timeSeriesData = await iotData.GetAsync(entityIds, from, to, interval, itype);
 foreach (var item in timeSeriesData)
 {
-    Console.WriteLine($"Entity ID: {item.Key}");
+    Console.Out.WriteLineAsync($"Entity ID: {item.Key}");
     foreach (var data in item.Value)
     {
-        Console.WriteLine($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
+        Console.Out.WriteLineAsync($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
     }
 }
 ```
@@ -158,7 +158,7 @@ iotData.ExceptionOccurred += OnExceptionOccurred;
 private static void OnExceptionOccurred(object? sender, ExceptionEventArgs e)
 {
     // Log or handle the exception as needed
-    Console.WriteLine($"Exception occurred: {e.Message}");
+    Console.Out.WriteLineAsync($"Exception occurred: {e.Message}");
     // The ExceptionEventArgs includes details about the exception:
     // - Class: Name of the class where the exception occurred
     // - Method: Name of the method where the exception occurred

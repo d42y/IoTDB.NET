@@ -10,9 +10,11 @@ namespace IoTDBdotNET
 
         private bool _queueProcessing = false;
 
+        private readonly int _maxItemsPerFlush;
+
         public TSBsonStorage(string databasePath, string name) : base(databasePath, name, 10)
         {
-
+            _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
         }
 
         protected override void PerformBackgroundWork(CancellationToken cancellationToken)
@@ -67,8 +69,11 @@ namespace IoTDBdotNET
                     }
                     if (items.Count > 0)
                     {
-                        var collection = Database.GetCollection<TSItem>(_collectionName);
-                        collection.Insert(items);
+                        using (var db = new LiteDatabase(ConnectionString))
+                        {
+                            var collection = db.GetCollection<TSItem>(_collectionName);
+                            collection.Insert(items);
+                        }
                         //Database.Commit(); do not need to do LiteDB auto commit
                     }
 
@@ -93,11 +98,14 @@ namespace IoTDBdotNET
                     {
                         to = to.ToUniversalTime();
                     }
-                    var collection = Database.GetCollection<TSItem>(_collectionName);
-                    var query = collection.Query()
-                        .Where(x => x.Id == id && x.Timestamp >= from && x.Timestamp <= to)
-                        .ToEnumerable();
-                    return query;
+                    using (var db = new LiteDatabase(ConnectionString))
+                    {
+                        var collection = db.GetCollection<TSItem>(_collectionName);
+                        var query = collection.Query()
+                            .Where(x => x.Id == id && x.Timestamp >= from && x.Timestamp <= to)
+                            .ToEnumerable();
+                        return query;
+                    }
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -118,11 +126,14 @@ namespace IoTDBdotNET
                     {
                         to = to.ToUniversalTime();
                     }
-                    var collection = Database.GetCollection<TSItem>(_collectionName);
-                    var query = collection.Query()
-                        .Where(x => ids.Contains(x.Id) && x.Timestamp >= from && x.Timestamp <= to)
-                        .ToEnumerable();
-                    return query;
+                    using (var db = new LiteDatabase(ConnectionString))
+                    {
+                        var collection = db.GetCollection<TSItem>(_collectionName);
+                        var query = collection.Query()
+                            .Where(x => ids.Contains(x.Id) && x.Timestamp >= from && x.Timestamp <= to)
+                            .ToEnumerable();
+                        return query;
+                    }
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }

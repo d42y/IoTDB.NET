@@ -1,0 +1,119 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace IoTDBdotNET.TimeSeriesDB
+{
+    internal class FileLocker<T> where T : struct, IDisposable
+    {
+        public enum Mode
+        {
+            Read,
+            Write,
+            ReadWrite
+        }
+
+        private readonly object _fileLockObject = new object();
+
+        private Mode FileMode;
+        private Mode OperatingMode;
+        private TeaFile<T>? Tf = null;
+        private string FilePath;
+
+        public FileLocker(Mode mode, string path) 
+        {
+            FileMode = mode;
+            FilePath = path;
+        }
+
+        public IItemCollection<T>? Read
+        {
+            get
+            {
+                if (!SetMode(Mode.Read)) return null;
+                return Tf?.Items;
+            }
+        }
+        public bool Write(T item)
+        {
+            try
+            {
+                if (!SetMode(Mode.Write)) return false;
+                Tf?.Write(item);
+                return true;
+            }
+            catch { }
+            return false;
+        }
+
+        public bool Write(IEnumerable<T> items)
+        {
+            try
+            {
+                if (FileMode == Mode.Read)
+                {
+                    return false;
+                }
+                Tf?.Write(items);
+                return true;
+            }
+            catch { }
+            return false;
+        }
+
+        
+        private bool SetMode(Mode mode)
+        {
+            if (mode == Mode.ReadWrite) return false;
+            if (mode == Mode.Write)
+            {
+                if (FileMode == Mode.Read)
+                {
+                    return false;
+                }
+                if (OperatingMode == Mode.Read)
+                {
+                    Tf?.Dispose();
+                    Tf = null;
+                }
+                if (Tf == null)
+                {
+                    if (File.Exists(FilePath))
+                    {
+                        Tf = TeaFile<T>.Append(FilePath);
+                    }
+                    else
+                    {
+                        Tf = TeaFile<T>.Create(FilePath);
+                    }
+                }
+                OperatingMode = Mode.Write;
+            } else
+            {
+                if (FileMode == Mode.Write || !File.Exists(FilePath))
+                {
+                    return false;
+                }
+                if (Tf == null)
+                {
+                    Tf = TeaFile<T>.OpenRead(FilePath);
+                }
+                else if (OperatingMode == Mode.Write)
+                {
+                    Tf.Dispose();
+                    Tf = TeaFile<T>.OpenRead(FilePath);
+                }
+                OperatingMode = Mode.Read;
+            }
+            return true;
+        }
+
+        public void Dispose ()
+        {
+            Tf?.Dispose();
+        }
+    }
+}
