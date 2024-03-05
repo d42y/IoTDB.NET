@@ -46,11 +46,10 @@ namespace IoTDBdotNET
 
         private void InitializeTimeSeriesStorages(string dbPathName)
         {
-            var tsPath = Path.Combine(dbPathName, "TimeSeries");
             for (int i = 1; i <= NumThreads; i++)
             {
-                _numericStorage[i] = new TSNumericStorage(i.ToString(), tsPath, true);
-                _bsonStorage[i] = new TSBsonStorage(tsPath, $"{i}_BsonSeries");
+                _numericStorage[i] = new TSNumericStorage(i.ToString(), DbPath, true);
+                _bsonStorage[i] = new TSBsonStorage(DbPath, $"{i}_BsonSeries");
             }
         }
         #endregion Init

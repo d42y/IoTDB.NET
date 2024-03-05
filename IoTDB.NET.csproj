@@ -9,4 +9,10 @@
     <RootNamespace>IoTDBdotNET</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Reference Include="Swan.Lite">
+      <HintPath>EmbedIO\Swan\Swan.Lite.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

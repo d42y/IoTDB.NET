@@ -1,8 +1,9 @@
-﻿using System.Linq.Expressions;
+﻿using IoTDBdotNET.TableDB;
+using System.Linq.Expressions;
 
 namespace IoTDBdotNET
 {
-    public interface ITableCollection<T>
+    public interface ITableCollection<T> where T : class
     {
         BsonAutoId AutoId { get; }
         EntityMapper EntityMapper { get; }
@@ -56,7 +57,8 @@ namespace IoTDBdotNET
         BsonValue Min();
         BsonValue Min(BsonExpression keySelector);
         K Min<K>(Expression<Func<T, K>> keySelector);
-        ILiteQueryable<T> Query();
+        //ILiteQueryable<T> Query();
+        QueryBuilder<T> Query();
         bool Update(BsonValue id, T entity);
         int Update(IEnumerable<T> entities);
         void UpdateQueue(T entity);

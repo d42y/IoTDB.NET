@@ -28,6 +28,7 @@ namespace IoTDBdotNET
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             StartBackgroundTask();
         }
+        internal string DbPath { get { return _dbPath; } }
 
         //protected ILiteDatabase Database { get { return new LiteDatabase(Path.Combine(_dbPath, $"{_dbName}.db")); } }
         protected CancellationTokenSource CancellationTokenSource { get { return _cancellationTokenSource; } }

@@ -1,6 +1,8 @@
 ﻿using IoTDBdotNET;
+using IoTDBdotNET.TableDB;
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Xml;
@@ -8,26 +10,29 @@ using System.Xml.Linq;
 
 namespace IoTDBdotNET
 {
-    internal class TableCollection<T> : BaseDatabase, ITableCollection<T>
+    internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : class
     {
-        private readonly string _collectionName = "table";
+        #region Global Variables
+        private readonly string _collectionName = "Collection";
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
+        private IoTDatabase _database;
+        #endregion
 
-        public TableCollection(string dbPath, string tableName) : base(dbPath, tableName)
+        #region Constructors
+        public TableCollection(string dbPath, IoTDatabase database) : base(dbPath, typeof(T).Name)
         {
             if (!HasIdProperty())
             {
                 throw new KeyNotFoundException("Table missing Id property with int or long data type.");
             }
+            SetGlobalIgnore();
+            _database = database;
+
         }
+        #endregion
 
-        #region ILiteCollection
-        /// <summary>
-        /// Get collection name
-        /// </summary>
-        public string Name => _collectionName;
-
+        #region A
         /// <summary>
         /// Get collection auto id type
         /// </summary>
@@ -41,6 +46,173 @@ namespace IoTDBdotNET
                 }
             }
         }
+        #endregion
+
+        #region C
+        /// <summary>
+        /// Get document count using property on collection.
+        /// </summary>
+        public int Count()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count();
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public int Count(BsonExpression predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public int Count(string predicate, BsonDocument parameters)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count(predicate, parameters);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public int Count(string predicate, params BsonValue[] args)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count(predicate, args);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public int Count(Expression<Func<T, bool>> predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public int Count(Query query)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Count(query);
+            }
+
+        }
+
+        #endregion
+
+        #region D
+        /// <summary>
+        /// Drop index and release slot for another index
+        /// </summary>
+        public bool DropIndex(string name)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DropIndex(name);
+            }
+
+        }
+
+        /// <summary>
+        /// Delete a single document on collection based on _id index. Returns true if document was deleted
+        /// </summary>
+        public bool Delete(BsonValue id)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Delete(id);
+            }
+
+        }
+        /// <summary>
+        /// Delete all documents inside collection. Returns how many documents was deleted. Run inside current transaction
+        /// </summary>
+        public int DeleteAll()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DeleteAll();
+            }
+
+        }
+        /// <summary>
+        /// Delete all documents based on predicate expression. Returns how many documents was deleted
+        /// </summary>
+        public int DeleteMany(BsonExpression predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Delete all documents based on predicate expression. Returns how many documents was deleted
+        /// </summary>
+        public int DeleteMany(string predicate, BsonDocument parameters)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, parameters);
+            }
+
+        }
+        /// <summary>
+        /// Delete all documents based on predicate expression. Returns how many documents was deleted
+        /// </summary>
+        public int DeleteMany(string predicate, params BsonValue[] args)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, args);
+            }
+
+        }
+        /// <summary>
+        /// Delete all documents based on predicate expression. Returns how many documents was deleted
+        /// </summary>
+        public int DeleteMany(Expression<Func<T, bool>> predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
+            }
+
+        }
+        #endregion
+
+        #region E
 
         /// <summary>
         /// Getting entity mapper from current collection. Returns null if collection are BsonDocument type
@@ -55,32 +227,476 @@ namespace IoTDBdotNET
                 }
             }
         }
+
         /// <summary>
-        /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
-        /// Returns a new Collection with this action included
+        /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
         /// </summary>
-        public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector)
+        /// <param name="name">Index name - unique name for this collection</param>
+        /// <param name="expression">Create a custom expression function to be indexed</param>
+        /// <param name="unique">If is a unique index</param>
+        public bool EnsureIndex(string name, BsonExpression expression, bool unique = false)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Include<K>(keySelector);
+                return db.GetCollection<T>(_collectionName).EnsureIndex(name, expression, unique);
             }
 
         }
         /// <summary>
-        /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
-        /// Returns a new Collection with this action included
+        /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
         /// </summary>
-        public ILiteCollection<T> Include(BsonExpression keySelector)
+        /// <param name="expression">Document field/expression</param>
+        /// <param name="unique">If is a unique index</param>
+        public bool EnsureIndex(BsonExpression expression, bool unique = false)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Include(keySelector);
+                return db.GetCollection<T>(_collectionName).EnsureIndex(expression, unique);
             }
 
         }
+
+        /// <summary>
+        /// Create a new permanent index in all documents inside this collections if index not exists already.
+        /// </summary>
+        /// <param name="name">Index name - unique name for this collection</param>
+        /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
+        /// <param name="unique">Create a unique keys index?</param>
+        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).EnsureIndex(name, keySelector, unique);
+            }
+
+        }
+
+        /// <summary>
+        /// Create a new permanent index in all documents inside this collections if index not exists already.
+        /// </summary>
+        /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
+        /// <param name="unique">Create a unique keys index?</param>
+        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).EnsureIndex(keySelector, unique);
+            }
+
+        }
+
+        /// <summary>
+        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public bool Exists(BsonExpression predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Exists(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public bool Exists(string predicate, BsonDocument parameters)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Exists(predicate, parameters);
+            }
+
+        }
+        /// <summary>
+        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public bool Exists(string predicate, params BsonValue[] args)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Exists(predicate, args);
+            }
+
+        }
+        /// <summary>
+        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public bool Exists(Expression<Func<T, bool>> predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Exists(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
+        /// </summary>
+        public bool Exists(Query query)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Exists(query);
+            }
+
+        }
+
+        #endregion
+
+        #region F
+        /// <summary>
+        /// Find documents inside a collection using predicate expression.
+        /// </summary>
+        public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
+            }
+
+        }
+
+
+        /// <summary>
+        /// Find documents inside a collection using query definition.
+        /// </summary>
+        public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Find(query, skip, limit);
+            }
+
+        }
+        /// <summary>
+        /// Find documents inside a collection using predicate expression.
+        /// </summary>
+        public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
+            }
+
+        }
+        /// <summary>
+        /// Find a document using Document Id. Returns null if not found.
+        /// </summary>
+        public T FindById(BsonValue id)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindById(id);
+            }
+
+        }
+        /// <summary>
+        /// Find the first document using predicate expression. Returns null if not found
+        /// </summary>
+        public T FindOne(BsonExpression predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindOne(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Find the first document using predicate expression. Returns null if not found
+        /// </summary>
+        public T FindOne(string predicate, BsonDocument parameters)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindOne(predicate, parameters);
+            }
+
+        }
+        /// <summary>
+        /// Find the first document using predicate expression. Returns null if not found
+        /// </summary>
+        public T FindOne(BsonExpression predicate, params BsonValue[] args)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindOne(predicate, args);
+            }
+
+        }
+        /// <summary>
+        /// Find the first document using predicate expression. Returns null if not found
+        /// </summary>
+        public T FindOne(Expression<Func<T, bool>> predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindOne(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Find the first document using defined query structure. Returns null if not found
+        /// </summary>
+        public T FindOne(Query query)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindOne(query);
+            }
+
+        }
+        /// <summary>
+        /// Returns all documents inside collection order by _id index.
+        /// </summary>
+        public IEnumerable<T> FindAll()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).FindAll();
+            }
+
+        }
+        #endregion
+
+        #region I
+        /// <summary>
+        /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
+        /// </summary>
+        public BsonValue Insert(T entity)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Insert(entity);
+            }
+
+        }
+
+        /// <summary>
+        /// Insert a new document to this collection using passed id value.
+        /// </summary>
+        public void Insert(BsonValue id, T entity)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                db.GetCollection<T>(_collectionName).Insert(id, entity);
+            }
+
+        }
+
+        /// <summary>
+        /// Insert an array of new documents to this collection. Document Id must be a new value in collection. Can be set buffer size to commit at each N documents
+        /// </summary>
+        public int Insert(IEnumerable<T> entities)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Insert(entities);
+            }
+
+        }
+
+        /// <summary>
+        /// Implements bulk insert documents in a collection. Usefull when need lots of documents.
+        /// </summary>
+        public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).InsertBulk(entities, batchSize);
+            }
+
+        }
+        #endregion
+
+        #region L
+        /// <summary>
+        /// Get document count using property on collection.
+        /// </summary>
+        public long LongCount()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount();
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public long LongCount(BsonExpression predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public long LongCount(string predicate, BsonDocument parameters)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount(predicate, parameters);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public long LongCount(string predicate, params BsonValue[] args)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount(predicate, args);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public long LongCount(Expression<Func<T, bool>> predicate)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount(predicate);
+            }
+
+        }
+        /// <summary>
+        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
+        /// </summary>
+        public long LongCount(Query query)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).LongCount(query);
+            }
+
+        }
+        #endregion
+
+        #region M
+        /// <summary>
+        /// Returns the min value from specified key value in collection
+        /// </summary>
+        public BsonValue Min(BsonExpression keySelector)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Min(keySelector);
+            }
+
+        }
+        /// <summary>
+        /// Returns the min value of _id index
+        /// </summary>
+        public BsonValue Min()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Min();
+            }
+
+        }
+        /// <summary>
+        /// Returns the min value from specified key value in collection
+        /// </summary>
+        public K Min<K>(Expression<Func<T, K>> keySelector)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Min(keySelector);
+            }
+
+        }
+        /// <summary>
+        /// Returns the max value from specified key value in collection
+        /// </summary>
+        public BsonValue Max(BsonExpression keySelector)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Max(keySelector);
+            }
+
+        }
+        /// <summary>
+        /// Returns the max _id index key value
+        /// </summary>
+        public BsonValue Max()
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Max();
+            }
+
+        }
+        /// <summary>
+        /// Returns the last/max field using a linq expression
+        /// </summary>
+        public K Max<K>(Expression<Func<T, K>> keySelector)
+        {
+
+            using (var db = new LiteDatabase(ConnectionString))
+            {
+                return db.GetCollection<T>(_collectionName).Max(keySelector);
+            }
+
+        }
+        #endregion
+
+        #region N
+        /// <summary>
+        /// Get collection name
+        /// </summary>
+        public string Name => _collectionName;
+        #endregion
+
+        #region Q
+        public QueryBuilder<T> Query()
+        {
+            return new QueryBuilder<T>(_database);
+        }
+
+        #endregion
+
+        #region U
         /// <summary>
         /// Insert or Update a document in this collection.
         /// </summary>
@@ -198,611 +814,9 @@ namespace IoTDBdotNET
 
         }
 
-        /// <summary>
-        /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
-        /// </summary>
-        public BsonValue Insert(T entity)
-        {
+        #endregion
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Insert(entity);
-            }
-
-        }
-
-        /// <summary>
-        /// Insert a new document to this collection using passed id value.
-        /// </summary>
-        public void Insert(BsonValue id, T entity)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                db.GetCollection<T>(_collectionName).Insert(id, entity);
-            }
-
-        }
-
-        /// <summary>
-        /// Insert an array of new documents to this collection. Document Id must be a new value in collection. Can be set buffer size to commit at each N documents
-        /// </summary>
-        public int Insert(IEnumerable<T> entities)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Insert(entities);
-            }
-
-        }
-
-        /// <summary>
-        /// Implements bulk insert documents in a collection. Usefull when need lots of documents.
-        /// </summary>
-        public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).InsertBulk(entities, batchSize);
-            }
-
-        }
-
-        /// <summary>
-        /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
-        /// </summary>
-        /// <param name="name">Index name - unique name for this collection</param>
-        /// <param name="expression">Create a custom expression function to be indexed</param>
-        /// <param name="unique">If is a unique index</param>
-        public bool EnsureIndex(string name, BsonExpression expression, bool unique = false)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(name, expression, unique);
-            }
-
-        }
-        /// <summary>
-        /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
-        /// </summary>
-        /// <param name="expression">Document field/expression</param>
-        /// <param name="unique">If is a unique index</param>
-        public bool EnsureIndex(BsonExpression expression, bool unique = false)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(expression, unique);
-            }
-
-        }
-        /// <summary>
-        /// Create a new permanent index in all documents inside this collections if index not exists already.
-        /// </summary>
-        /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
-        /// <param name="unique">Create a unique keys index?</param>
-        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(keySelector, unique);
-            }
-
-        }
-        /// <summary>
-        /// Create a new permanent index in all documents inside this collections if index not exists already.
-        /// </summary>
-        /// <param name="name">Index name - unique name for this collection</param>
-        /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
-        /// <param name="unique">Create a unique keys index?</param>
-        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(name, keySelector, unique);
-            }
-
-        }
-        /// <summary>
-        /// Drop index and release slot for another index
-        /// </summary>
-        public bool DropIndex(string name)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DropIndex(name);
-            }
-
-        }
-        /// <summary>
-        /// Return a new LiteQueryable to build more complex queries
-        /// </summary>
-        public ILiteQueryable<T> Query()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Query();
-            }
-
-        }
-        /// <summary>
-        /// Find documents inside a collection using predicate expression.
-        /// </summary>
-        public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
-            }
-
-        }
-        /// <summary>
-        /// Find documents inside a collection using query definition.
-        /// </summary>
-        public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(query, skip, limit);
-            }
-
-        }
-        /// <summary>
-        /// Find documents inside a collection using predicate expression.
-        /// </summary>
-        public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
-            }
-
-        }
-        /// <summary>
-        /// Find a document using Document Id. Returns null if not found.
-        /// </summary>
-        public T FindById(BsonValue id)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindById(id);
-            }
-
-        }
-        /// <summary>
-        /// Find the first document using predicate expression. Returns null if not found
-        /// </summary>
-        public T FindOne(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Find the first document using predicate expression. Returns null if not found
-        /// </summary>
-        public T FindOne(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Find the first document using predicate expression. Returns null if not found
-        /// </summary>
-        public T FindOne(BsonExpression predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Find the first document using predicate expression. Returns null if not found
-        /// </summary>
-        public T FindOne(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Find the first document using defined query structure. Returns null if not found
-        /// </summary>
-        public T FindOne(Query query)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(query);
-            }
-
-        }
-        /// <summary>
-        /// Returns all documents inside collection order by _id index.
-        /// </summary>
-        public IEnumerable<T> FindAll()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindAll();
-            }
-
-        }
-        /// <summary>
-        /// Delete a single document on collection based on _id index. Returns true if document was deleted
-        /// </summary>
-        public bool Delete(BsonValue id)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Delete(id);
-            }
-
-        }
-        /// <summary>
-        /// Delete all documents inside collection. Returns how many documents was deleted. Run inside current transaction
-        /// </summary>
-        public int DeleteAll()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DeleteAll();
-            }
-
-        }
-        /// <summary>
-        /// Delete all documents based on predicate expression. Returns how many documents was deleted
-        /// </summary>
-        public int DeleteMany(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Delete all documents based on predicate expression. Returns how many documents was deleted
-        /// </summary>
-        public int DeleteMany(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Delete all documents based on predicate expression. Returns how many documents was deleted
-        /// </summary>
-        public int DeleteMany(string predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Delete all documents based on predicate expression. Returns how many documents was deleted
-        /// </summary>
-        public int DeleteMany(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Get document count using property on collection.
-        /// </summary>
-        public int Count()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count();
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public int Count(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public int Count(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public int Count(string predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public int Count(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public int Count(Query query)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Count(query);
-            }
-
-        }
-        /// <summary>
-        /// Get document count using property on collection.
-        /// </summary>
-        public long LongCount()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount();
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(string predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(Query query)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(query);
-            }
-
-        }
-        /// <summary>
-        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public bool Exists(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public bool Exists(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public bool Exists(string predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public bool Exists(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Returns true if query returns any document. This method does not deserialize any document. Needs indexes on query expression
-        /// </summary>
-        public bool Exists(Query query)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(query);
-            }
-
-        }
-        /// <summary>
-        /// Returns the min value from specified key value in collection
-        /// </summary>
-        public BsonValue Min(BsonExpression keySelector)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min(keySelector);
-            }
-
-        }
-        /// <summary>
-        /// Returns the min value of _id index
-        /// </summary>
-        public BsonValue Min()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min();
-            }
-
-        }
-        /// <summary>
-        /// Returns the min value from specified key value in collection
-        /// </summary>
-        public K Min<K>(Expression<Func<T, K>> keySelector)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min(keySelector);
-            }
-
-        }
-        /// <summary>
-        /// Returns the max value from specified key value in collection
-        /// </summary>
-        public BsonValue Max(BsonExpression keySelector)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max(keySelector);
-            }
-
-        }
-        /// <summary>
-        /// Returns the max _id index key value
-        /// </summary>
-        public BsonValue Max()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max();
-            }
-
-        }
-        /// <summary>
-        /// Returns the last/max field using a linq expression
-        /// </summary>
-        public K Max<K>(Expression<Func<T, K>> keySelector)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max(keySelector);
-            }
-
-        }
-        #endregion ILiteCollection
-
-        #region base functions
+        #region Base Functions
 
         protected override void InitializeDatabase()
         {
@@ -884,6 +898,103 @@ namespace IoTDBdotNET
 
             return false;
         }
+
+        private static PropertyInfo? GetIdProperty(Type type)
+        {
+
+            PropertyInfo? idProperty = type.GetProperty($"Id");
+
+            if (idProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type idType = idProperty.PropertyType;
+
+                // Check if the property type is int or long
+                return idType == typeof(int) || idType == typeof(long) ? idProperty : null;
+            }
+
+            return null;
+        }
+
+        private static PropertyInfo? GetRefTableIdProperty(Type type)
+        {
+
+            PropertyInfo? refTableIdProperty = typeof(T).GetProperty($"{type.Name}Id");
+
+            if (refTableIdProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type refIdType = refTableIdProperty.PropertyType;
+
+                // Check if the property type is int or long
+                return refIdType == typeof(int) || refIdType == typeof(long) ? refTableIdProperty : null;
+            }
+
+            return null;
+        }
+
+
+        private static PropertyInfo? GetRefTableProperty<U>()
+        {
+            // Correctly get the type of the collection instance
+            PropertyInfo? refTableListProperty = typeof(T).GetProperty($"{typeof(U).Name}Table");
+
+            if (refTableListProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type refListType = refTableListProperty.PropertyType;
+
+                // Check if the property type is ILiteCollection<U>
+                if (refListType.IsGenericType &&
+                    refListType.GetGenericTypeDefinition() == typeof(List<>) &&
+                    refListType.GenericTypeArguments[0] == typeof(U))
+                {
+                    return refTableListProperty;
+                }
+            }
+
+            return null;
+        }
+
+
+        private static void SetGlobalIgnore()
+        {
+            PropertyInfo[] properties = typeof(T).GetProperties();
+            foreach (var property in properties)
+            {
+                if (property.PropertyType.IsGenericType &&
+                    property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                {
+                    Type refTableType = property.PropertyType.GetGenericArguments()[0];
+                    if (GetIdProperty(refTableType) != null && GetRefTableIdProperty(refTableType) != null)
+                    {
+                        if (property.Name.Equals($"{refTableType.Name}Table"))
+                        {
+                            IgnoreProperty(property);
+                        }
+
+                    }
+
+                }
+            }
+        }
+
+        public static void IgnoreProperty(PropertyInfo propertyInfo)
+        {
+            // Get the PropertyInfo object for the property name
+
+            if (propertyInfo == null) return;
+     
+            // Build an expression tree to represent the property access
+            var parameter = Expression.Parameter(typeof(T), "x");
+            var propertyAccess = Expression.Property(parameter, propertyInfo);
+            var lambda = Expression.Lambda<Func<T, object>>(Expression.Convert(propertyAccess, typeof(object)), parameter);
+
+            // Use the expression tree to ignore the property
+            BsonMapper.Global.Entity<T>().Ignore(lambda);
+        }
+
+
         #endregion base functions
     }
 }
