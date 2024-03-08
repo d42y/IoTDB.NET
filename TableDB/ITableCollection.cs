@@ -31,10 +31,10 @@ namespace IoTDBdotNET
         bool Exists(Query query);
         bool Exists(string predicate, BsonDocument parameters);
         bool Exists(string predicate, params BsonValue[] args);
-        IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue);
-        IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue);
-        IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue);
-        IEnumerable<T> FindAll();
+        List<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue);
+        List<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue);
+        List<T> Find(Query query, int skip = 0, int limit = int.MaxValue);
+        List<T> FindAll();
         T FindById(BsonValue id);
         T FindOne(BsonExpression predicate);
         T FindOne(BsonExpression predicate, params BsonValue[] args);

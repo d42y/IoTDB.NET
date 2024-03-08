@@ -22,11 +22,11 @@ namespace IoTDBdotNET
         #region Constructors
         public TableCollection(string dbPath, IoTDatabase database) : base(dbPath, typeof(T).Name)
         {
-            if (!HasIdProperty())
+            if (!HasIdProperty(typeof(T)))
             {
-                throw new KeyNotFoundException("Table missing Id property with int or long data type.");
+                throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
             }
-            SetGlobalIgnore();
+            SetGlobalIgnore<T>();
             _database = database;
 
         }
@@ -356,12 +356,12 @@ namespace IoTDBdotNET
         /// <summary>
         /// Find documents inside a collection using predicate expression.
         /// </summary>
-        public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
+        public List<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
+                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit).ToList();
             }
 
         }
@@ -370,24 +370,24 @@ namespace IoTDBdotNET
         /// <summary>
         /// Find documents inside a collection using query definition.
         /// </summary>
-        public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
+        public List<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Find(query, skip, limit);
+                return db.GetCollection<T>(_collectionName).Find(query, skip, limit).ToList();
             }
 
         }
         /// <summary>
         /// Find documents inside a collection using predicate expression.
         /// </summary>
-        public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue)
+        public List<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit);
+                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit).ToList();
             }
 
         }
@@ -466,12 +466,12 @@ namespace IoTDBdotNET
         /// <summary>
         /// Returns all documents inside collection order by _id index.
         /// </summary>
-        public IEnumerable<T> FindAll()
+        public List<T> FindAll()
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).FindAll();
+                return db.GetCollection<T>(_collectionName).FindAll().ToList();
             }
 
         }
@@ -853,7 +853,7 @@ namespace IoTDBdotNET
             List<long> id = new List<long>();
             while (_updateEntityQueue.TryDequeue(out var entity) && count++ <= 1000)
             {
-                var idProperty = typeof(T).GetProperty("Id");
+                var idProperty = GetIdProperty(typeof(T));
                 if (idProperty == null)
                 {
                     OnExceptionOccurred(new(new InvalidOperationException("Type T must have a property named 'Id'.")));
@@ -880,120 +880,6 @@ namespace IoTDBdotNET
                 }
             }
         }
-
-
-        private static bool HasIdProperty()
-        {
-
-            PropertyInfo? idProperty = typeof(T).GetProperty("Id");
-
-            if (idProperty != null)
-            {
-                // Property exists, now you can get its type
-                Type idType = idProperty.PropertyType;
-
-                // Check if the property type is int or long
-                return idType == typeof(int) || idType == typeof(long);
-            }
-
-            return false;
-        }
-
-        private static PropertyInfo? GetIdProperty(Type type)
-        {
-
-            PropertyInfo? idProperty = type.GetProperty($"Id");
-
-            if (idProperty != null)
-            {
-                // Property exists, now you can get its type
-                Type idType = idProperty.PropertyType;
-
-                // Check if the property type is int or long
-                return idType == typeof(int) || idType == typeof(long) ? idProperty : null;
-            }
-
-            return null;
-        }
-
-        private static PropertyInfo? GetRefTableIdProperty(Type type)
-        {
-
-            PropertyInfo? refTableIdProperty = typeof(T).GetProperty($"{type.Name}Id");
-
-            if (refTableIdProperty != null)
-            {
-                // Property exists, now you can get its type
-                Type refIdType = refTableIdProperty.PropertyType;
-
-                // Check if the property type is int or long
-                return refIdType == typeof(int) || refIdType == typeof(long) ? refTableIdProperty : null;
-            }
-
-            return null;
-        }
-
-
-        private static PropertyInfo? GetRefTableProperty<U>()
-        {
-            // Correctly get the type of the collection instance
-            PropertyInfo? refTableListProperty = typeof(T).GetProperty($"{typeof(U).Name}Table");
-
-            if (refTableListProperty != null)
-            {
-                // Property exists, now you can get its type
-                Type refListType = refTableListProperty.PropertyType;
-
-                // Check if the property type is ILiteCollection<U>
-                if (refListType.IsGenericType &&
-                    refListType.GetGenericTypeDefinition() == typeof(List<>) &&
-                    refListType.GenericTypeArguments[0] == typeof(U))
-                {
-                    return refTableListProperty;
-                }
-            }
-
-            return null;
-        }
-
-
-        private static void SetGlobalIgnore()
-        {
-            PropertyInfo[] properties = typeof(T).GetProperties();
-            foreach (var property in properties)
-            {
-                if (property.PropertyType.IsGenericType &&
-                    property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
-                {
-                    Type refTableType = property.PropertyType.GetGenericArguments()[0];
-                    if (GetIdProperty(refTableType) != null && GetRefTableIdProperty(refTableType) != null)
-                    {
-                        if (property.Name.Equals($"{refTableType.Name}Table"))
-                        {
-                            IgnoreProperty(property);
-                        }
-
-                    }
-
-                }
-            }
-        }
-
-        public static void IgnoreProperty(PropertyInfo propertyInfo)
-        {
-            // Get the PropertyInfo object for the property name
-
-            if (propertyInfo == null) return;
-     
-            // Build an expression tree to represent the property access
-            var parameter = Expression.Parameter(typeof(T), "x");
-            var propertyAccess = Expression.Property(parameter, propertyInfo);
-            var lambda = Expression.Lambda<Func<T, object>>(Expression.Convert(propertyAccess, typeof(object)), parameter);
-
-            // Use the expression tree to ignore the property
-            BsonMapper.Global.Entity<T>().Ignore(lambda);
-        }
-
 
         #endregion base functions
     }

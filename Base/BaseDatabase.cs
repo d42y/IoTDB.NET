@@ -1,4 +1,6 @@
-﻿using System.Security.Cryptography;
+﻿using System.Linq.Expressions;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 
@@ -26,6 +28,18 @@ namespace IoTDBdotNET
             if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
             ConnectionString = Path.Combine(dbPath, $"{_dbName}.db");
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
+            try
+            {
+                InitializeDatabase();
+            }
+            catch (NotImplementedException)
+            {
+                //do nothing
+            }
+            catch (Exception ex)
+            {
+                OnExceptionOccurred(new(ex));
+            }
             StartBackgroundTask();
         }
         internal string DbPath { get { return _dbPath; } }
@@ -115,5 +129,110 @@ namespace IoTDBdotNET
         {
             StopBackgroundTask();
         }
+
+        #region Properties
+        internal static bool HasIdProperty(Type collectionClassType)
+        {
+
+            PropertyInfo? idProperty = GetIdProperty(collectionClassType);
+            return idProperty != null;
+            
+        }
+
+        internal static PropertyInfo? GetIdProperty(Type collectionClassType)
+        {
+
+            PropertyInfo? idProperty = collectionClassType.GetProperty($"Id");
+
+            if (idProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type idType = idProperty.PropertyType;
+
+                // Check if the property type is int or long
+                return idType == typeof(int) || idType == typeof(long) || idType == typeof(Guid) ? idProperty : null;
+            }
+
+            return null;
+        }
+
+        internal static PropertyInfo? GetRefTableIdProperty(Type collectionClassType, Type refTableType)
+        {
+
+            PropertyInfo? refTableIdProperty = collectionClassType.GetProperty($"{refTableType.Name}Id");
+
+            if (refTableIdProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type refIdType = refTableIdProperty.PropertyType;
+
+                // Check if the property type is int or long
+                return refIdType == typeof(int) || refIdType == typeof(long) ? refTableIdProperty : null;
+            }
+
+            return null;
+        }
+
+        internal static PropertyInfo? GetRefTableProperty(Type collectionClassType, Type refTableType)
+        {
+            // Correctly get the type of the collection instance
+            PropertyInfo? refTableListProperty = collectionClassType.GetProperty($"{refTableType.Name}Table");
+
+            if (refTableListProperty != null)
+            {
+                // Property exists, now you can get its type
+                Type refListType = refTableListProperty.PropertyType;
+
+                // Check if the property type is ILiteCollection<U>
+                if (refListType.IsGenericType &&
+                    refListType.GetGenericTypeDefinition() == typeof(List<>) &&
+                    refListType.GenericTypeArguments[0] == refTableType)
+                {
+                    return refTableListProperty;
+                }
+            }
+
+            return null;
+        }
+
+        internal static void SetGlobalIgnore<T>()
+        {
+            PropertyInfo[] properties = typeof(T).GetProperties();
+            foreach (var property in properties)
+            {
+                if (property.PropertyType.IsGenericType &&
+                    property.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                {
+                    Type refTableType = property.PropertyType.GetGenericArguments()[0];
+                    if (GetIdProperty(refTableType) != null && GetRefTableIdProperty(typeof(T), refTableType) != null)
+                    {
+                        if (property.Name.Equals($"{refTableType.Name}Table"))
+                        {
+                            IgnoreProperty<T>(property);
+                        }
+
+                    }
+
+                }
+            }
+        }
+
+        internal static void IgnoreProperty<T>(PropertyInfo propertyInfo)
+        {
+            // Get the PropertyInfo object for the property name
+
+            if (propertyInfo == null) return;
+
+            // Build an expression tree to represent the property access
+            var parameter = Expression.Parameter(typeof(T), "x");
+            var propertyAccess = Expression.Property(parameter, propertyInfo);
+            var lambda = Expression.Lambda<Func<T, object>>(Expression.Convert(propertyAccess, typeof(object)), parameter);
+
+            // Use the expression tree to ignore the property
+            BsonMapper.Global.Entity<T>().Ignore(lambda);
+        }
+
+        
+        #endregion
     }
 }
