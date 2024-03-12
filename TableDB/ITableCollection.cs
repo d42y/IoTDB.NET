@@ -9,12 +9,12 @@ namespace IoTDBdotNET
         EntityMapper EntityMapper { get; }
         string Name { get; }
 
-        int Count();
-        int Count(BsonExpression predicate);
-        int Count(Expression<Func<T, bool>> predicate);
-        int Count(Query query);
-        int Count(string predicate, BsonDocument parameters);
-        int Count(string predicate, params BsonValue[] args);
+        long Count();
+        long Count(BsonExpression predicate);
+        long Count(Expression<Func<T, bool>> predicate);
+        long Count(Query query);
+        long Count(string predicate, BsonDocument parameters);
+        long Count(string predicate, params BsonValue[] args);
         bool Delete(BsonValue id);
         int DeleteAll();
         int DeleteMany(BsonExpression predicate);
@@ -45,12 +45,6 @@ namespace IoTDBdotNET
         int Insert(IEnumerable<T> entities);
         BsonValue Insert(T entity);
         int InsertBulk(IEnumerable<T> entities, int batchSize = 5000);
-        long LongCount();
-        long LongCount(BsonExpression predicate);
-        long LongCount(Expression<Func<T, bool>> predicate);
-        long LongCount(Query query);
-        long LongCount(string predicate, BsonDocument parameters);
-        long LongCount(string predicate, params BsonValue[] args);
         BsonValue Max();
         BsonValue Max(BsonExpression keySelector);
         K Max<K>(Expression<Func<T, K>> keySelector);

@@ -77,5 +77,13 @@ namespace IoTDBdotNET.Helper
             public ulong ullAvailVirtual;
             public ulong ullAvailExtendedVirtual;
         }
+
+        public static void CreateDirectory(string dbPathName)
+        {
+            if (!Directory.Exists(dbPathName))
+            {
+                Directory.CreateDirectory(dbPathName);
+            }
+        }
     }
 }

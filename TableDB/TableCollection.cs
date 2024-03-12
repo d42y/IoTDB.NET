@@ -1,4 +1,7 @@
 ﻿using IoTDBdotNET;
+using IoTDBdotNET.BlockDB;
+using IoTDBdotNET.BlockDB.Attributes;
+using IoTDBdotNET.Helper;
 using IoTDBdotNET.TableDB;
 using System;
 using System.Collections.Concurrent;
@@ -7,6 +10,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace IoTDBdotNET
 {
@@ -17,6 +21,8 @@ namespace IoTDBdotNET
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
         private IoTDatabase _database;
+        private List<BlockInfo> _blocksInfo = new();
+        private ConcurrentDictionary<string, BlockCollection> _blocks = new();
         #endregion
 
         #region Constructors
@@ -27,9 +33,16 @@ namespace IoTDBdotNET
                 throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
             }
             SetGlobalIgnore<T>();
+            var blockChainProperties = ReflectionHelper.GetPropertiesWithBlockChainValueAttribute(typeof(T)).ToList();
+            foreach (var prop in blockChainProperties)
+            {
+                var attribute = prop.GetCustomAttribute<BlockChainValueAttribute>();
+                _blocksInfo.Add(new(prop.Name, typeof(BlockChainValueAttribute).Name, attribute?.Description??"", prop));
+            }
             _database = database;
 
         }
+
         #endregion
 
         #region A
@@ -52,74 +65,122 @@ namespace IoTDBdotNET
         /// <summary>
         /// Get document count using property on collection.
         /// </summary>
-        public int Count()
+        public long Count()
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count();
+                return db.GetCollection<T>(_collectionName).LongCount();
             }
 
         }
         /// <summary>
         /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
         /// </summary>
-        public int Count(BsonExpression predicate)
+        public long Count(BsonExpression predicate)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count(predicate);
+                return db.GetCollection<T>(_collectionName).LongCount(predicate);
             }
 
         }
         /// <summary>
         /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
         /// </summary>
-        public int Count(string predicate, BsonDocument parameters)
+        public long Count(string predicate, BsonDocument parameters)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count(predicate, parameters);
+                return db.GetCollection<T>(_collectionName).LongCount(predicate, parameters);
             }
 
         }
         /// <summary>
         /// Count documents matching a query. This method does not deserialize any document. Needs indexes on query expression
         /// </summary>
-        public int Count(string predicate, params BsonValue[] args)
+        public long Count(string predicate, params BsonValue[] args)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count(predicate, args);
+                return db.GetCollection<T>(_collectionName).LongCount(predicate, args);
             }
 
         }
         /// <summary>
         /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
         /// </summary>
-        public int Count(Expression<Func<T, bool>> predicate)
+        public long Count(Expression<Func<T, bool>> predicate)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count(predicate);
+                return db.GetCollection<T>(_collectionName).LongCount(predicate);
             }
 
         }
         /// <summary>
         /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
         /// </summary>
-        public int Count(Query query)
+        public long Count(Query query)
         {
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Count(query);
+                return db.GetCollection<T>(_collectionName).LongCount(query);
             }
 
+        }
+
+        #endregion
+
+        #region BlockChain
+        public List<BlockInfo> BlocksInfo
+        {
+            get
+            {
+                return _blocksInfo;
+            }
+        }
+
+        public BlockInfo TagPropertyAsBlockInfo(string name, string description = "")
+        {
+            var prop = ReflectionHelper.GetProperty(typeof(T), name);
+            if (prop == null) throw new KeyNotFoundException(name);
+            BlockInfo bi = new(name, "Manual Tag BlockChainValueAttribute", description, prop);
+            _blocksInfo.Add(bi);
+            return bi;
+        }
+
+        public IBlockCollection? Blocks(string name)
+        {
+            if (!_blocksInfo.Any(x => x.Name == name))
+            {
+                throw new EntryPointNotFoundException($"{typeof(T).Name} does not have BlockChainValueAttribute with name {name}.");
+            }
+
+            if (!_blocks.ContainsKey(name))
+            {
+                var blockPath = Path.Combine(DbPath, "BlockChain");
+                Helper.MachineInfo.CreateDirectory(blockPath);
+                _blocks[name] = new BlockCollection(blockPath, $"{DbName}_{name}");
+                _blocks[name].ExceptionOccurred += OnBlockExceptionOccurred;
+            }
+            return _blocks[name];
+        }
+
+        private void WriteToBlocks (T entity)
+        {
+            foreach(var bi in _blocksInfo)
+            {
+                var value = bi.Property.GetValue(entity);
+                if (value == null) continue;
+                _blocks[bi.Name].Insert(new BsonValue(value));
+            }
+            
         }
 
         #endregion
@@ -486,6 +547,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 return db.GetCollection<T>(_collectionName).Insert(entity);
             }
 
@@ -499,6 +561,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 db.GetCollection<T>(_collectionName).Insert(id, entity);
             }
 
@@ -512,6 +575,10 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                foreach (var entity in entities)
+                {
+                    WriteToBlocks(entity);
+                }
                 return db.GetCollection<T>(_collectionName).Insert(entities);
             }
 
@@ -525,82 +592,11 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                foreach (var entity in entities)
+                {
+                    WriteToBlocks(entity);
+                }
                 return db.GetCollection<T>(_collectionName).InsertBulk(entities, batchSize);
-            }
-
-        }
-        #endregion
-
-        #region L
-        /// <summary>
-        /// Get document count using property on collection.
-        /// </summary>
-        public long LongCount()
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount();
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(BsonExpression predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(string predicate, BsonDocument parameters)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, parameters);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(string predicate, params BsonValue[] args)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, args);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(Expression<Func<T, bool>> predicate)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
-
-        }
-        /// <summary>
-        /// Count documents matching a query. This method does not deserialize any documents. Needs indexes on query expression
-        /// </summary>
-        public long LongCount(Query query)
-        {
-
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(query);
             }
 
         }
@@ -688,6 +684,13 @@ namespace IoTDBdotNET
         public string Name => _collectionName;
         #endregion
 
+        #region O
+        protected void OnBlockExceptionOccurred(object? sender, ExceptionEventArgs e)
+        {
+            OnExceptionOccurred(e);
+        }
+        #endregion
+
         #region Q
         public QueryBuilder<T> Query()
         {
@@ -705,6 +708,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 return db.GetCollection<T>(_collectionName).Upsert(entity);
             }
 
@@ -717,6 +721,10 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                foreach (var entity in entities)
+                {
+                    WriteToBlocks(entity);
+                }
                 return db.GetCollection<T>(_collectionName).Upsert(entities);
             }
 
@@ -730,6 +738,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 return db.GetCollection<T>(_collectionName).Upsert(id, entity);
             }
 
@@ -741,7 +750,7 @@ namespace IoTDBdotNET
         /// <param name="entity"></param>
         public void UpdateQueue(T entity)
         {
-
+            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateQueue is not supported for T with BlockChainValue attributes"); }
             _updateEntityQueue.Enqueue(entity);
 
         }
@@ -754,6 +763,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 return db.GetCollection<T>(_collectionName).Update(entity);
             }
 
@@ -768,6 +778,7 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                WriteToBlocks(entity);
                 return db.GetCollection<T>(_collectionName).Update(id, entity);
             }
 
@@ -781,6 +792,10 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
+                foreach (var entity in entities)
+                {
+                    WriteToBlocks(entity);
+                }
                 return db.GetCollection<T>(_collectionName).Update(entities);
             }
 
@@ -792,7 +807,7 @@ namespace IoTDBdotNET
         /// </summary>
         public int UpdateMany(BsonExpression transform, BsonExpression predicate)
         {
-
+            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
             using (var db = new LiteDatabase(ConnectionString))
             {
                 return db.GetCollection<T>(_collectionName).UpdateMany(transform, predicate);
@@ -806,9 +821,10 @@ namespace IoTDBdotNET
         /// </summary>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
         {
-
+            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
             using (var db = new LiteDatabase(ConnectionString))
             {
+                
                 return db.GetCollection<T>(_collectionName).UpdateMany(extend, predicate);
             }
 

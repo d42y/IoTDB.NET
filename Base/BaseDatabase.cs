@@ -43,6 +43,7 @@ namespace IoTDBdotNET
             StartBackgroundTask();
         }
         internal string DbPath { get { return _dbPath; } }
+        internal string DbName { get { return _dbName; } }
 
         //protected ILiteDatabase Database { get { return new LiteDatabase(Path.Combine(_dbPath, $"{_dbName}.db")); } }
         protected CancellationTokenSource CancellationTokenSource { get { return _cancellationTokenSource; } }
@@ -234,5 +235,7 @@ namespace IoTDBdotNET
 
         
         #endregion
+
+
     }
 }

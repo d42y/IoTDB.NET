@@ -26,54 +26,31 @@ namespace IoTDBdotNET
 
         }
 
-        private ILiteCollection<BsonDocument>? GetBsonTable(string tableName)
-        {
-            if (string.IsNullOrEmpty(tableName)) throw new ArgumentNullException(nameof(tableName));
-            var dbTablePath = Path.Combine(_tbPath, $"{tableName}.db");
-            if (!File.Exists(dbTablePath)) return null;
-            // Open database
-            using (var db = new LiteDatabase(@"MyData.db"))
-            {
-                // Get a collection (or create, if doesn't exist)
-                var col = db.GetCollection("Collection");
-                return col; 
-            }
-           
-        }
-
         public ITableCollection<T> Tables<T>() where T : class
         {
             string name = typeof(T).Name;
             if (!_tables.ContainsKey(name))
             {
-                CreateDirectory(_tbPath);
+                Helper.MachineInfo.CreateDirectory(_tbPath);
                 _tables[name] = new TableCollection<T>(_tbPath, this);
                 ((TableCollection<T>)_tables[name]).ExceptionOccurred += OnExceptionOccurred;
             }
             return (TableCollection<T>)_tables[name];
         }
 
-
-
         private void InitializeDirectories(string dbName, string dbPath)
         {
-            CreateDirectory(dbPath);
+            Helper.MachineInfo.CreateDirectory(dbPath);
              var dbPathName = Path.Combine(dbPath, dbName);
             _dbPath = dbPathName;
-            CreateDirectory(_dbPath);
+            Helper.MachineInfo.CreateDirectory(_dbPath);
             _tsPath = Path.Combine(_dbPath, "TimeSeries");
-            CreateDirectory(_tsPath);
+            Helper.MachineInfo.CreateDirectory(_tsPath);
             _tbPath = Path.Combine(_dbPath, "Tables");
-            CreateDirectory(_tbPath);
+            Helper.MachineInfo.CreateDirectory(_tbPath);
         }
 
-        private void CreateDirectory(string dbPathName)
-        {
-            if (!Directory.Exists(dbPathName))
-            {
-                Directory.CreateDirectory(dbPathName);
-            }
-        }
+        
 
         protected virtual void OnExceptionOccurred(object? sender, ExceptionEventArgs e)
         {
