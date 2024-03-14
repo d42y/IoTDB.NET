@@ -178,7 +178,7 @@ namespace IoTDBdotNET
             var prop = ReflectionHelper.GetProperty(typeof(T), name);
             if (prop == null) throw new KeyNotFoundException(name);
             BlockChainValueAttribute attribute = new BlockChainValueAttribute(description);
-            ColumnInfo bi = new(name, attribute, prop);
+            ColumnInfo bi = new(prop, attribute);
             _blocksInfo.Add(bi);
             return bi;
         }
