@@ -1,6 +1,6 @@
 ﻿using IoTDBdotNET;
+using IoTDBdotNET.Attributes;
 using IoTDBdotNET.BlockDB;
-using IoTDBdotNET.BlockDB.Attributes;
 using IoTDBdotNET.Helper;
 using IoTDBdotNET.TableDB;
 using System;
@@ -21,8 +21,9 @@ namespace IoTDBdotNET
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
         private IoTDatabase _database;
-        private List<BlockInfo> _blocksInfo = new();
+        private List<ColumnInfo> _blocksInfo = new();
         private ConcurrentDictionary<string, BlockCollection> _blocks = new();
+        public TableInfo TableInfo { get; private set; }
         #endregion
 
         #region Constructors
@@ -33,17 +34,43 @@ namespace IoTDBdotNET
                 throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
             }
             SetGlobalIgnore<T>();
-            var blockChainProperties = ReflectionHelper.GetPropertiesWithBlockChainValueAttribute(typeof(T)).ToList();
-            foreach (var prop in blockChainProperties)
-            {
-                var attribute = prop.GetCustomAttribute<BlockChainValueAttribute>();
-                _blocksInfo.Add(new(prop.Name, typeof(BlockChainValueAttribute).Name, attribute?.Description??"", prop));
-            }
+            _blocksInfo = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
+            
             _database = database;
+            TableInfo = new TableInfo(typeof(T));
+            foreach (var ft in TableInfo.ForeignTables)
+            {
+                if (ft.Name.EndsWith("Table"))
+                {
+                    var name = ft.Name.Substring(0, ft.Name.Length - "Table".Length);
+                    var idName = $"{name}Id";
+                    if (!TableInfo.ForeignKeys.Any(x => x.Name == idName))
+                    {
+                        throw new InvalidFieldTypeException($"Table doesn't have Foreign Key for referenced Foreign Table name {ft.Name}.");
+                    }
+                }
+            }
+            database._tableInfos[TableInfo.Name] = TableInfo;
+            foreach (var table in database._tableInfos)
+            {
+                foreach (var fk in table.Value.ForeignKeys)
+                {
+                    if (fk.Name.EndsWith("Id"))
+                    {
+                        var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
+                        var tf = database._tableInfos.FirstOrDefault(x=>x.Key == name).Value;
+                        if (!tf.ChildTables.Any(x=>x.Name == table.Key)) {
+                            tf.ChildTables.Add(table.Value);
+                        }
 
+                    }
+                }
+            }
         }
 
         #endregion
+
+       
 
         #region A
         /// <summary>
@@ -138,7 +165,7 @@ namespace IoTDBdotNET
         #endregion
 
         #region BlockChain
-        public List<BlockInfo> BlocksInfo
+        public List<ColumnInfo> BlocksInfo
         {
             get
             {
@@ -146,11 +173,12 @@ namespace IoTDBdotNET
             }
         }
 
-        public BlockInfo TagPropertyAsBlockInfo(string name, string description = "")
+        public ColumnInfo TagPropertyAsBlockInfo(string name, string description = "")
         {
             var prop = ReflectionHelper.GetProperty(typeof(T), name);
             if (prop == null) throw new KeyNotFoundException(name);
-            BlockInfo bi = new(name, "Manual Tag BlockChainValueAttribute", description, prop);
+            BlockChainValueAttribute attribute = new BlockChainValueAttribute(description);
+            ColumnInfo bi = new(name, attribute, prop);
             _blocksInfo.Add(bi);
             return bi;
         }
@@ -176,7 +204,7 @@ namespace IoTDBdotNET
         {
             foreach(var bi in _blocksInfo)
             {
-                var value = bi.Property.GetValue(entity);
+                var value = bi.PropertyInfo.GetValue(entity);
                 if (value == null) continue;
                 _blocks[bi.Name].Insert(new BsonValue(value));
             }

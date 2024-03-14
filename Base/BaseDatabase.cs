@@ -18,6 +18,8 @@ namespace IoTDBdotNET
         private readonly double _backgroundTaskFromMilliseconds;
         private readonly string _dbName;
         private readonly string _dbPath;
+        
+
         protected string ConnectionString { get; private set; }
         public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
         {

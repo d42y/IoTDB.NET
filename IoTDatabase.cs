@@ -1,4 +1,6 @@
-﻿using System.Collections.Concurrent;
+﻿using IoTDBdotNET.SystemTables;
+using IoTDBdotNET.TableDB;
+using System.Collections.Concurrent;
 
 namespace IoTDBdotNET
 {
@@ -12,7 +14,7 @@ namespace IoTDBdotNET
         private string _tbPath;
         public ITimeSeriesDatabase TimeSeries { get; }
         private ConcurrentDictionary<string, dynamic> _tables = new();
-
+        internal ConcurrentDictionary<string, TableInfo> _tableInfos = new();
 
         public IoTDatabase(string dbName, string dbPath)
         {
@@ -26,6 +28,8 @@ namespace IoTDBdotNET
 
         }
 
+       
+
         public ITableCollection<T> Tables<T>() where T : class
         {
             string name = typeof(T).Name;
@@ -34,8 +38,11 @@ namespace IoTDBdotNET
                 Helper.MachineInfo.CreateDirectory(_tbPath);
                 _tables[name] = new TableCollection<T>(_tbPath, this);
                 ((TableCollection<T>)_tables[name]).ExceptionOccurred += OnExceptionOccurred;
+                TableCollection<T> table = _tables[name];
+
             }
-            return (TableCollection<T>)_tables[name];
+            
+            return _tables[name];
         }
 
         private void InitializeDirectories(string dbName, string dbPath)

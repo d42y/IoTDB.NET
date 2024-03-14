@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IoTDBdotNET.BlockDB.Attributes
+namespace IoTDBdotNET.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)] // Apply to properties only.
     public class BlockChainValueAttribute : Attribute
