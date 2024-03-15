@@ -39,7 +39,7 @@ namespace IoTDBdotNET.Helper
                 var attribute = prop.GetCustomAttribute<A>();
                 if (attribute != null)
                 {
-                    columns.Add(new(prop.Name, attribute, prop));
+                    columns.Add(new(prop, attribute));
                 }
             }
             return columns;

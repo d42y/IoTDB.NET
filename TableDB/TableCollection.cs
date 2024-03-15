@@ -164,6 +164,8 @@ namespace IoTDBdotNET
 
         #endregion
 
+
+
         #region BlockChain
         public List<ColumnInfo> BlocksInfo
         {
@@ -214,6 +216,9 @@ namespace IoTDBdotNET
         #endregion
 
         #region D
+
+        
+
         /// <summary>
         /// Drop index and release slot for another index
         /// </summary>
@@ -235,7 +240,34 @@ namespace IoTDBdotNET
 
             using (var db = new LiteDatabase(ConnectionString))
             {
-                return db.GetCollection<T>(_collectionName).Delete(id);
+                if (_database._tableInfos[typeof(T).Name].ChildTables.Count > 0)
+                {
+                    //1. make sure no child has multiple foreign keys
+                    foreach (var child in _database._tableInfos[typeof(T).Name].ChildTables)
+                    {
+                        if (child.ForeignKeys.Count > 1) throw new InvalidOperationException($"Fialed cascade delete child table {child.Name} has multiple foreign key. Please delete child record first before deleting from table {Name}.");
+
+                    }
+
+                    //2. no child has multiple foreign keys. Now try to delete
+                    foreach (var child in _database._tableInfos[typeof(T).Name].ChildTables)
+                    {
+                        var table = _database.GetTable(child.Name);
+                        if (table == null) continue;
+                        var fk = child.ForeignKeys.FirstOrDefault(x => x.Name == $"{typeof(T).Name}Id");
+                        if (fk == null) continue;
+                        var results = table.Query().Find($"{fk.Name}", $"{id}", Base.Comparison.Equals).Execute();
+                        foreach(var item in results)
+                        {
+                            var childId = child.Id?.PropertyInfo.GetValue(item, null);
+                            if (childId == null) continue;
+                            var good = table.Delete(childId);
+                            if (!good) throw new InternalErrorException($"Failed to delete record in child table {table.Name}");
+                        }
+                    }
+                }
+                var result = db.GetCollection<T>(_collectionName).Delete(id);
+                return result;
             }
 
         }
@@ -725,6 +757,7 @@ namespace IoTDBdotNET
             return new QueryBuilder<T>(_database);
         }
 
+        
         #endregion
 
         #region U

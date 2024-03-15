@@ -1,5 +1,4 @@
-﻿using IoTDBdotNET.SystemTables;
-using IoTDBdotNET.TableDB;
+﻿using IoTDBdotNET.TableDB;
 using System.Collections.Concurrent;
 
 namespace IoTDBdotNET
@@ -43,6 +42,17 @@ namespace IoTDBdotNET
             }
             
             return _tables[name];
+        }
+
+        internal ITableCollection<dynamic>? GetTable(string name)
+        {
+            if (_tables.ContainsKey(name))
+            {
+                return _tables[name];
+                
+
+            }
+            return null;
         }
 
         private void InitializeDirectories(string dbName, string dbPath)

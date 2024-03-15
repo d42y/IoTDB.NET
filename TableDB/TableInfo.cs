@@ -10,7 +10,9 @@ namespace IoTDBdotNET.TableDB
 {
     public class TableInfo
     {
+        
         public string Name { get; set; }
+        public Type Type { get; set; }
         public ColumnInfo? Id { get; set; }
         public List<ColumnInfo> Uniques { get; set; } = new();
         public List<ColumnInfo> ForeignKeys { get; set; } = new();
@@ -21,8 +23,9 @@ namespace IoTDBdotNET.TableDB
         public TableInfo() { }
         public TableInfo(Type type) 
         {
+            
             Name = type.Name;
-
+            Type = type;
             //Id
             var id = BaseDatabase.GetIdProperty(type);
             if (id == null) Id = null;

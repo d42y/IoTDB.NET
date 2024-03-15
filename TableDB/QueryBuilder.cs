@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using IoTDBdotNET;
+using IoTDBdotNET.Base;
 
 namespace IoTDBdotNET.TableDB
 {
@@ -26,9 +27,41 @@ namespace IoTDBdotNET.TableDB
             _database = database;
         }
 
-        public QueryBuilder<T> Where(Expression<Func<T, bool>> filter)
+        public QueryBuilder<T> Find(Expression<Func<T, bool>> filter)
         {
             _filters.Add(filter);
+            return this;
+        }
+
+
+        public QueryBuilder<T> Find(string propertyName, object value, Comparison comparisonType)
+        {
+            var parameterExp = Expression.Parameter(typeof(T), "type");
+            var propertyExp = Expression.Property(parameterExp, propertyName);
+            Expression? condition = null;
+
+            switch (comparisonType)
+            {
+                case Comparison.Equals:
+                    condition = Expression.Equal(propertyExp, Expression.Constant(value));
+                    break;
+                case Comparison.StartsWith:
+                    condition = Expression.Call(propertyExp, typeof(string).GetMethod(nameof(String.StartsWith), new[] { typeof(string) })!, Expression.Constant(value));
+                    break;
+                case Comparison.EndsWith:
+                    condition = Expression.Call(propertyExp, typeof(string).GetMethod(nameof(String.EndsWith), new[] { typeof(string) })!, Expression.Constant(value));
+                    break;
+                case Comparison.Contains:
+                    condition = Expression.Call(propertyExp, typeof(string).GetMethod(nameof(String.Contains), new[] { typeof(string) })!, Expression.Constant(value));
+                    break;
+            }
+
+            if (condition != null)
+            {
+                var lambda = Expression.Lambda<Func<T, bool>>(condition, parameterExp);
+                _filters.Add(lambda);
+            }
+
             return this;
         }
 
