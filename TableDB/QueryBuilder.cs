@@ -73,7 +73,7 @@ namespace IoTDBdotNET.TableDB
             return this;
         }
 
-        public IEnumerable<T> Execute()
+        public List<T> Execute()
         {
             var col = _database.Tables<T>();
             var query = col.FindAll().AsQueryable();
@@ -133,7 +133,7 @@ namespace IoTDBdotNET.TableDB
                 }
             }
 
-            return results;
+            return results.ToList();
         }
 
     }

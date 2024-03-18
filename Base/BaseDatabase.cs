@@ -50,6 +50,10 @@ namespace IoTDBdotNET
         //protected ILiteDatabase Database { get { return new LiteDatabase(Path.Combine(_dbPath, $"{_dbName}.db")); } }
         protected CancellationTokenSource CancellationTokenSource { get { return _cancellationTokenSource; } }
         protected object SyncRoot { get { return _syncRoot; } }
+
+
+
+
         // Method to raise the event
         protected virtual void OnExceptionOccurred(ExceptionEventArgs e)
         {

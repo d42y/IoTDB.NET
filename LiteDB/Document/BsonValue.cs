@@ -223,7 +223,7 @@ namespace IoTDBdotNET
         public bool AsBoolean => (bool)this.RawValue;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public string AsString => (string)this.RawValue;
+        public string AsString => this?.RawValue?.ToString()??string.Empty;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public int AsInt32 => Convert.ToInt32(this.RawValue);
@@ -365,7 +365,7 @@ namespace IoTDBdotNET
         // String
         public static implicit operator String(BsonValue value)
         {
-            return (String)value.RawValue;
+            return value.AsString;
         }
 
         // String

@@ -37,18 +37,18 @@ namespace IoTDBdotNET
                 Helper.MachineInfo.CreateDirectory(_tbPath);
                 _tables[name] = new TableCollection<T>(_tbPath, this);
                 ((TableCollection<T>)_tables[name]).ExceptionOccurred += OnExceptionOccurred;
-                TableCollection<T> table = _tables[name];
+                //TableCollection<T> table = _tables[name];
 
             }
             
-            return _tables[name];
+            return (ITableCollection<T>)_tables[name];
         }
 
-        internal ITableCollection<dynamic>? GetTable(string name)
+        internal ITableCollection? GetTable(string name)
         {
             if (_tables.ContainsKey(name))
             {
-                return _tables[name];
+                return (ITableCollection)_tables[name];
                 
 
             }
