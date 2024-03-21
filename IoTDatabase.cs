@@ -14,7 +14,6 @@ namespace IoTDBdotNET
         public ITimeSeriesDatabase TimeSeries { get; }
         private ConcurrentDictionary<string, dynamic> _tables = new();
         internal ConcurrentDictionary<string, TableInfo> _tableInfos = new();
-
         public IoTDatabase(string dbName, string dbPath)
         {
             // Directory checks and creation
@@ -24,10 +23,8 @@ namespace IoTDBdotNET
             if (!Directory.Exists(_tbPath)) throw new DirectoryNotFoundException($"Unable to create tables directory. {_tbPath}");
             TimeSeries = new TimeSeriesDatabase(_tsPath);
             TimeSeries.ExceptionOccurred += OnExceptionOccurred;
-
+            
         }
-
-       
 
         public ITableCollection<T> Tables<T>() where T : class
         {

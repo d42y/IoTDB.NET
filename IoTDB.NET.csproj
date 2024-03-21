@@ -10,13 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="Swan.Lite">
-      <HintPath>EmbedIO\Swan\Swan.Lite.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="SystemTables\" />
+    <Compile Remove="SystemTables\**" />
+    <EmbeddedResource Remove="SystemTables\**" />
+    <None Remove="SystemTables\**" />
   </ItemGroup>
 
 </Project>
