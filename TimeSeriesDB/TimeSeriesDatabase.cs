@@ -32,13 +32,10 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-
-
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
                     entities.EnsureIndex(x => x.Guid, true);
-                }
+                
 
             }
             catch (Exception ex) { throw new Exception($"Failed to initialize database. {ex.Message}"); }
@@ -64,9 +61,8 @@ namespace IoTDBdotNET
                     _processingQueue = true;
                     try
                     {
-                        using (var db = new LiteDatabase(ConnectionString))
-                        {
-                            var entitites = db.GetCollection<Entity>(_collectionName);
+                        
+                            var entitites = Database.GetCollection<Entity>(_collectionName);
                             int count = 0;
                             Dictionary<string, Entity> entityList = new();
                             List<string> guids = new List<string>();
@@ -132,7 +128,7 @@ namespace IoTDBdotNET
 
                                 entitites.Update(entityList.Select(x => x.Value).ToList());
                             }
-                        }
+                        
                     }
                     catch (Exception ex)
                     {
@@ -306,14 +302,13 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
 
                     // Find the entity by its Id
                     var entity = entities.FindOne(e => e.Id == id);
                     return entity;
-                }
+                
                 
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -325,15 +320,14 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
 
                     // Find the entity by its Id
                     var entity = entities.FindOne(e => e.Guid == guid);
                     _entities[entity.Guid] = entity;
                     return entity;
-                }
+                
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
             return null; // If no entity is found, return null
@@ -345,16 +339,15 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
                     var entity = entities.FindOne(e => e.Id == id);
                     if (entity != null)
                     {
                         entity.Guid = newGuid;
                         entities.Update(entity);
                     }
-                }
+                
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
@@ -363,9 +356,8 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
 
                     // First, find the entity to get its GUID
                     var entity = entities.FindById(id);
@@ -374,7 +366,7 @@ namespace IoTDBdotNET
                         // Delete the entity by ID
                         entities.Delete(id);
                     }
-                }
+                
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }
@@ -383,12 +375,11 @@ namespace IoTDBdotNET
         {
             try
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    var entities = db.GetCollection<Entity>(_collectionName);
+                
+                    var entities = Database.GetCollection<Entity>(_collectionName);
                     // Delete the entity by GUID
                     var entityDeleted = entities.DeleteMany(e => e.Guid == guid) > 0;
-                }
+                
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
         }

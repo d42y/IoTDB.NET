@@ -69,11 +69,10 @@ namespace IoTDBdotNET
                     }
                     if (items.Count > 0)
                     {
-                        using (var db = new LiteDatabase(ConnectionString))
-                        {
-                            var collection = db.GetCollection<TSItem>(_collectionName);
+                        
+                            var collection = Database.GetCollection<TSItem>(_collectionName);
                             collection.Insert(items);
-                        }
+                        
                         //Database.Commit(); do not need to do LiteDB auto commit
                     }
 
@@ -98,14 +97,13 @@ namespace IoTDBdotNET
                     {
                         to = to.ToUniversalTime();
                     }
-                    using (var db = new LiteDatabase(ConnectionString))
-                    {
-                        var collection = db.GetCollection<TSItem>(_collectionName);
+                    
+                        var collection = Database.GetCollection<TSItem>(_collectionName);
                         var query = collection.Query()
                             .Where(x => x.Id == id && x.Timestamp >= from && x.Timestamp <= to)
                             .ToEnumerable();
                         return query;
-                    }
+                    
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }
@@ -126,14 +124,13 @@ namespace IoTDBdotNET
                     {
                         to = to.ToUniversalTime();
                     }
-                    using (var db = new LiteDatabase(ConnectionString))
-                    {
-                        var collection = db.GetCollection<TSItem>(_collectionName);
+                    
+                        var collection = Database.GetCollection<TSItem>(_collectionName);
                         var query = collection.Query()
                             .Where(x => ids.Contains(x.Id) && x.Timestamp >= from && x.Timestamp <= to)
                             .ToEnumerable();
                         return query;
-                    }
+                    
                 }
             }
             catch (Exception ex) { OnExceptionOccurred(new(ex)); }

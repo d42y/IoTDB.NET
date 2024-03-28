@@ -21,7 +21,7 @@ namespace IoTDBdotNET
 
         private DateTime _lastAccess = DateTime.Now;
 
-        protected string ConnectionString { get; private set; }
+        internal readonly string _connectionString;
         public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
         {
             int logicalProcessorCount = Environment.ProcessorCount;
@@ -29,7 +29,7 @@ namespace IoTDBdotNET
             _dbName = dbName;
             _dbPath = dbPath;
             if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
-            ConnectionString = Path.Combine(dbPath, $"{_dbName}.db");
+            _connectionString = Path.Combine(dbPath, $"{_dbName}.db");
             _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             try
             {
@@ -43,7 +43,7 @@ namespace IoTDBdotNET
             {
                 OnExceptionOccurred(new(ex));
             }
-            _liteDatabase = new LiteDatabase(ConnectionString);
+            _liteDatabase = new LiteDatabase(_connectionString);
             StartBackgroundTask();
             
         }
