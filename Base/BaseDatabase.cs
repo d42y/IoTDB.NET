@@ -30,7 +30,8 @@ namespace IoTDBdotNET
             _dbPath = dbPath;
             if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
             _connectionString = Path.Combine(dbPath, $"{_dbName}.db");
-            _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
+            _liteDatabase = new LiteDatabase(_connectionString);
+            
             try
             {
                 InitializeDatabase();
@@ -43,7 +44,8 @@ namespace IoTDBdotNET
             {
                 OnExceptionOccurred(new(ex));
             }
-            _liteDatabase = new LiteDatabase(_connectionString);
+
+            _backgroundTaskFromMilliseconds = backgroundTaskFromMilliseconds;
             StartBackgroundTask();
             
         }
