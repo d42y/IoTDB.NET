@@ -18,7 +18,8 @@ namespace IoTDBdotNET
         private readonly double _backgroundTaskFromMilliseconds;
         private readonly string _dbName;
         private readonly string _dbPath;
-        
+
+        private DateTime _lastAccess = DateTime.Now;
 
         protected string ConnectionString { get; private set; }
         public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
@@ -42,7 +43,9 @@ namespace IoTDBdotNET
             {
                 OnExceptionOccurred(new(ex));
             }
+            _liteDatabase = new LiteDatabase(ConnectionString);
             StartBackgroundTask();
+            
         }
         internal string DbPath { get { return _dbPath; } }
         internal string DbName { get { return _dbName; } }
@@ -52,7 +55,15 @@ namespace IoTDBdotNET
         protected object SyncRoot { get { return _syncRoot; } }
 
 
-
+        private readonly LiteDatabase _liteDatabase;
+        public LiteDatabase Database
+        {
+            get
+            {
+                _lastAccess = DateTime.Now;
+                return _liteDatabase;
+            }
+        }
 
         // Method to raise the event
         protected virtual void OnExceptionOccurred(ExceptionEventArgs e)
@@ -70,6 +81,7 @@ namespace IoTDBdotNET
                     try
                     {
                         PerformBackgroundWork(_cancellationTokenSource.Token);
+                        
                     }
                     catch (NotImplementedException)
                     {
@@ -85,6 +97,8 @@ namespace IoTDBdotNET
                 }
             }, _cancellationTokenSource.Token);
         }
+
+        
 
         protected abstract void PerformBackgroundWork(CancellationToken cancellationToken);
 
@@ -135,6 +149,7 @@ namespace IoTDBdotNET
         public void Dispose()
         {
             StopBackgroundTask();
+            _liteDatabase?.Dispose();
         }
 
         #region Properties

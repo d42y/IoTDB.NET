@@ -20,6 +20,7 @@ namespace IoTDBdotNET.TableDB
         public List<ColumnInfo> ForeignTables { get; set; } = new();
         public List<TableInfo> ChildTables { get; set; } = new();
 
+        
         public TableInfo() { }
         public TableInfo(Type type) 
         {

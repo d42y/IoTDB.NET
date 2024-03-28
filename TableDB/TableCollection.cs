@@ -17,18 +17,25 @@ namespace IoTDBdotNET
 {
     internal class TableCollection<T> : BaseDatabase, ITableCollection<T> where T : class
     {
+
+        #region Thread Safe
+        private readonly object _lockObject = new object();
+       
+        #endregion
+
         #region Global Variables
         private readonly string _collectionName = "Collection";
+        private readonly ILiteCollection<T> _collection;
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
-        private IoTDatabase _database;
+        private IoTDatabase _iotDb;
         private List<ColumnInfo> _blocksInfo = new();
         private ConcurrentDictionary<string, BlockCollection> _blocks = new();
         public TableInfo TableInfo { get; private set; }
         #endregion
 
         #region Constructors
-        public TableCollection(string dbPath, IoTDatabase database) : base(dbPath, typeof(T).Name)
+        public TableCollection(string dbPath, IoTDatabase iotDb) : base(dbPath, typeof(T).Name)
         {
             if (!HasIdProperty(typeof(T)))
             {
@@ -36,8 +43,8 @@ namespace IoTDBdotNET
             }
             SetGlobalIgnore<T>();
             _blocksInfo = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
-            
-            _database = database;
+           
+            _iotDb = iotDb;
             TableInfo = new TableInfo(typeof(T));
             foreach (var ft in TableInfo.ForeignTables)
             {
@@ -51,15 +58,15 @@ namespace IoTDBdotNET
                     }
                 }
             }
-            database._tableInfos[TableInfo.Name] = TableInfo;
-            foreach (var table in database._tableInfos)
+            iotDb._tableInfos[TableInfo.Name] = TableInfo;
+            foreach (var table in iotDb._tableInfos)
             {
                 foreach (var fk in table.Value.ForeignKeys)
                 {
                     if (fk.Name.EndsWith("Id"))
                     {
                         var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
-                        var tf = database._tableInfos.FirstOrDefault(x=>x.Key == name).Value;
+                        var tf = iotDb._tableInfos.FirstOrDefault(x=>x.Key == name).Value;
                         if (tf == null) continue;
                         if (!tf.ChildTables.Any(x=>x.Name == table.Key)) {
                             tf.ChildTables.Add(table.Value);
@@ -68,6 +75,10 @@ namespace IoTDBdotNET
                     }
                 }
             }
+
+            _collection = Database.GetCollection<T>(_collectionName);
+
+
         }
 
         #endregion
@@ -80,25 +91,27 @@ namespace IoTDBdotNET
         {
             get
             {
-                using (var db = new LiteDatabase(ConnectionString))
-                {
-                    return db.GetCollection<T>(_collectionName).AutoId;
-                }
+                //lock(SyncRoot)
+                //lock(_lockObject)
+                //{
+                    return Database.GetCollection<T>(_collectionName).AutoId;
+                //}
             }
         }
         #endregion
 
         #region C
         /// <summary>
-        /// Get document count using property on collection.
+        /// Get document count using property on _collection.
         /// </summary>
         public long Count()
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount();
-            }
+            //lock(SyncRoot)
+            //lock(_lockObject)
+            //{
+                return Database.GetCollection<T>(_collectionName).LongCount();
+            //}
 
         }
         /// <summary>
@@ -107,10 +120,10 @@ namespace IoTDBdotNET
         public long Count(BsonExpression predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.LongCount(predicate);
+            //}
 
         }
         /// <summary>
@@ -119,10 +132,10 @@ namespace IoTDBdotNET
         public long Count(string predicate, BsonDocument parameters)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, parameters);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.LongCount(predicate, parameters);
+            //}
 
         }
         /// <summary>
@@ -131,10 +144,10 @@ namespace IoTDBdotNET
         public long Count(string predicate, params BsonValue[] args)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate, args);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.LongCount(predicate, args);
+            //}
 
         }
         /// <summary>
@@ -143,10 +156,10 @@ namespace IoTDBdotNET
         public long Count(Expression<Func<T, bool>> predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(predicate);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.LongCount(predicate);
+            //}
 
         }
         /// <summary>
@@ -155,10 +168,10 @@ namespace IoTDBdotNET
         public long Count(Query query)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).LongCount(query);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.LongCount(query);
+            //}
 
         }
 
@@ -221,10 +234,10 @@ namespace IoTDBdotNET
         public bool DropIndex(string name)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).DropIndex(name);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.DropIndex(name);
+            //}
 
         }
 
@@ -234,15 +247,15 @@ namespace IoTDBdotNET
         public bool Delete(BsonValue id)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                if (_database._tableInfos[typeof(T).Name].ChildTables.Count > 0)
+                if (_iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
                 {
                     //no child has multiple foreign keys. Now try to delete
-                    foreach (var child in _database._tableInfos[typeof(T).Name].ChildTables)
+                    foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
                     {
                         //get child table
-                        var table = _database.GetTable(child.Name); 
+                        var table = _iotDb.GetTable(child.Name); 
                         if (table == null) continue;
 
                         //get child foreign key
@@ -288,7 +301,7 @@ namespace IoTDBdotNET
                         }
                     }
                 }
-                var result = db.GetCollection<T>(_collectionName).Delete(id);
+                var result = _collection.Delete(id);
                 return result;
             }
 
@@ -305,20 +318,20 @@ namespace IoTDBdotNET
 
 
         /// <summary>
-        /// Delete all documents inside collection. Returns how many documents was deleted. Run inside current transaction
+        /// Delete all documents inside _collection. Returns how many documents was deleted. Run inside current transaction
         /// </summary>
         public int DeleteAll()
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                var col = db.GetCollection<T>(_collectionName);
-                if (_database._tableInfos[typeof(T).Name].ChildTables.Count > 0)
+                var col = Collection;
+                if (_iotDb._tableInfos[typeof(T).Name].ChildTables.Count > 0)
                 {
                     //no child has multiple foreign keys. Now try to delete
-                    foreach (var child in _database._tableInfos[typeof(T).Name].ChildTables)
+                    foreach (var child in _iotDb._tableInfos[typeof(T).Name].ChildTables)
                     {
-                        var table = _database.GetTable(child.Name);
+                        var table = _iotDb.GetTable(child.Name);
                         if (table == null) continue;
                         var fk = child.ForeignKeys.FirstOrDefault(x => x.Name == $"{typeof(T).Name}Id");
                         if (fk == null) continue;
@@ -366,9 +379,9 @@ namespace IoTDBdotNET
         public int DeleteMany(BsonExpression predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
+                return _collection.DeleteMany(predicate);
             }
 
         }
@@ -378,9 +391,9 @@ namespace IoTDBdotNET
         public int DeleteMany(string predicate, BsonDocument parameters)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, parameters);
+                return _collection.DeleteMany(predicate, parameters);
             }
 
         }
@@ -390,9 +403,9 @@ namespace IoTDBdotNET
         public int DeleteMany(string predicate, params BsonValue[] args)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate, args);
+                return _collection.DeleteMany(predicate, args);
             }
 
         }
@@ -402,9 +415,9 @@ namespace IoTDBdotNET
         public int DeleteMany(Expression<Func<T, bool>> predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).DeleteMany(predicate);
+                return _collection.DeleteMany(predicate);
             }
 
         }
@@ -413,15 +426,16 @@ namespace IoTDBdotNET
         #region E
 
         /// <summary>
-        /// Getting entity mapper from current collection. Returns null if collection are BsonDocument type
+        /// Getting entity mapper from current _collection. Returns null if collection are BsonDocument type
         /// </summary>
         public EntityMapper EntityMapper
         {
             get
             {
-                using (var db = new LiteDatabase(ConnectionString))
+                //lock(SyncRoot)
+                lock(SyncRoot)
                 {
-                    return db.GetCollection<T>(_collectionName).EntityMapper;
+                    return _collection.EntityMapper;
                 }
             }
         }
@@ -435,9 +449,10 @@ namespace IoTDBdotNET
         public bool EnsureIndex(string name, BsonExpression expression, bool unique = false)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(name, expression, unique);
+                return _collection.EnsureIndex(name, expression, unique);
             }
 
         }
@@ -449,10 +464,11 @@ namespace IoTDBdotNET
         public bool EnsureIndex(BsonExpression expression, bool unique = false)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(expression, unique);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.EnsureIndex(expression, unique);
+            //}
 
         }
 
@@ -465,10 +481,11 @@ namespace IoTDBdotNET
         public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(name, keySelector, unique);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.EnsureIndex(name, keySelector, unique);
+            //}
 
         }
 
@@ -480,10 +497,10 @@ namespace IoTDBdotNET
         public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).EnsureIndex(keySelector, unique);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.EnsureIndex(keySelector, unique);
+            //}
 
         }
 
@@ -493,10 +510,10 @@ namespace IoTDBdotNET
         public bool Exists(BsonExpression predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.Exists(predicate);
+            //}
 
         }
         /// <summary>
@@ -505,10 +522,10 @@ namespace IoTDBdotNET
         public bool Exists(string predicate, BsonDocument parameters)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate, parameters);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.Exists(predicate, parameters);
+            //}
 
         }
         /// <summary>
@@ -517,10 +534,10 @@ namespace IoTDBdotNET
         public bool Exists(string predicate, params BsonValue[] args)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate, args);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.Exists(predicate, args);
+            //}
 
         }
         /// <summary>
@@ -529,10 +546,10 @@ namespace IoTDBdotNET
         public bool Exists(Expression<Func<T, bool>> predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(predicate);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.Exists(predicate);
+            //}
 
         }
         /// <summary>
@@ -541,10 +558,10 @@ namespace IoTDBdotNET
         public bool Exists(Query query)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Exists(query);
-            }
+            //lock(SyncRoot)
+            //{
+                return _collection.Exists(query);
+            //}
 
         }
 
@@ -562,9 +579,9 @@ namespace IoTDBdotNET
 
         public List<BsonDocument> Find(string columnName, string value, Comparison comparisonType = Comparison.Equals)
         {
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                var col = db.GetCollection<BsonDocument>(_collectionName);
+            //lock(SyncRoot)
+            //{
+                var col = Database.GetCollection<BsonDocument>(_collectionName);
 
                 IEnumerable<BsonDocument> query = col.FindAll().ToList();
                 if (columnName == "Id") columnName = "_id";
@@ -597,7 +614,7 @@ namespace IoTDBdotNET
                 });
 
                 return results.ToList();
-            }
+            //}
         }
 
 
@@ -607,10 +624,12 @@ namespace IoTDBdotNET
         public List<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit).ToList();
-            }
+            ////lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                
+                return _collection.Find(predicate, skip, limit).ToList();
+            //}
 
         }
         /// <summary>
@@ -619,10 +638,11 @@ namespace IoTDBdotNET
         public List<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(query, skip, limit).ToList();
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Find(query, skip, limit).ToList();
+            //}
 
         }
         /// <summary>
@@ -631,10 +651,11 @@ namespace IoTDBdotNET
         public List<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Find(predicate, skip, limit).ToList();
-            }
+
+            //lock(SyncRoot)
+            //{
+                return _collection.Find(predicate, skip, limit).ToList();
+            //}
 
         }
         /// <summary>
@@ -643,10 +664,11 @@ namespace IoTDBdotNET
         public T FindById(BsonValue id)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindById(id);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindById(id);
+            //}
 
         }
         /// <summary>
@@ -655,10 +677,11 @@ namespace IoTDBdotNET
         public T FindOne(BsonExpression predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindOne(predicate);
+            //}
 
         }
         /// <summary>
@@ -667,10 +690,11 @@ namespace IoTDBdotNET
         public T FindOne(string predicate, BsonDocument parameters)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate, parameters);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindOne(predicate, parameters);
+            //}
 
         }
         /// <summary>
@@ -679,10 +703,11 @@ namespace IoTDBdotNET
         public T FindOne(BsonExpression predicate, params BsonValue[] args)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate, args);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindOne(predicate, args);
+            //}
 
         }
         /// <summary>
@@ -691,10 +716,11 @@ namespace IoTDBdotNET
         public T FindOne(Expression<Func<T, bool>> predicate)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(predicate);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindOne(predicate);
+            //}
 
         }
         /// <summary>
@@ -703,10 +729,11 @@ namespace IoTDBdotNET
         public T FindOne(Query query)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindOne(query);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindOne(query);
+            //}
 
         }
         /// <summary>
@@ -715,24 +742,26 @@ namespace IoTDBdotNET
         public List<T> FindAll()
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).FindAll().ToList();
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.FindAll().ToList();
+            //}
 
         }
 
         /// <summary>
-        /// Finds all documents or a specified number of documents in a collection. 
+        /// Finds all documents or a specified number of documents in a _collection. 
         /// If take is 0, all documents are returned.
         /// </summary>
         /// <param name="take">The maximum number of documents to return, or 0 to return all.</param>
         /// <returns>A list of BSON documents with '_id' field renamed to 'Id'.</returns>
         public List<BsonDocument> FindAll(int take = 1000, TakeOrder takeOrder = TakeOrder.Last)
         {
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                var col = db.GetCollection<BsonDocument>(_collectionName);
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                var col = Database.GetCollection<BsonDocument>(_collectionName);
 
                 // Initially get all documents
                 IEnumerable<BsonDocument> query = new List<BsonDocument>();  
@@ -768,13 +797,13 @@ namespace IoTDBdotNET
                 }).ToList();
 
                 return results;
-            }
+            //}
         }
         #endregion
 
         #region I
         /// <summary>
-        /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
+        /// Insert a new entity to this _collection. Document Id must be a new value in collection - Returns document Id
         /// </summary>
         public BsonValue Insert(T entity)
         {
@@ -789,7 +818,7 @@ namespace IoTDBdotNET
                         BsonValue bv = new(val);
                         if (bv.IsNumber && bv < 1) throw new ArgumentException($"Numeric foreign key {fk.Name} value {val} is invalid Id.");
                         var tableName = fk.Name.Substring(0, fk.Name.Length - 2);
-                        var table = _database.GetTable(tableName);
+                        var table = _iotDb.GetTable(tableName);
                         if (table == null) throw new FileNotFoundException($"Foreign key table {tableName} is not found.");
                         var parentRecords = table.Find("Id", bv, Base.Comparison.Equals);
                         if (parentRecords.Count < 1) throw new MissingMemberException($"Table {tableName} doesn't have record with foreign key Id.");
@@ -808,10 +837,11 @@ namespace IoTDBdotNET
                 }
             }
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                return db.GetCollection<T>(_collectionName).Insert(entity);
+                return _collection.Insert(entity);
             }
 
         }
@@ -822,44 +852,47 @@ namespace IoTDBdotNET
         public void Insert(BsonValue id, T entity)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                db.GetCollection<T>(_collectionName).Insert(id, entity);
+                _collection.Insert(id, entity);
             }
 
         }
 
         /// <summary>
-        /// Insert an array of new documents to this collection. Document Id must be a new value in collection. Can be set buffer size to commit at each N documents
+        /// Insert an array of new documents to this _collection. Document Id must be a new value in _collection. Can be set buffer size to commit at each N documents
         /// </summary>
         public int Insert(IEnumerable<T> entities)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 foreach (var entity in entities)
                 {
                     WriteToBlocks(entity);
                 }
-                return db.GetCollection<T>(_collectionName).Insert(entities);
+                return _collection.Insert(entities);
             }
 
         }
 
         /// <summary>
-        /// Implements bulk insert documents in a collection. Usefull when need lots of documents.
+        /// Implements bulk insert documents in a _collection. Usefull when need lots of documents.
         /// </summary>
         public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 foreach (var entity in entities)
                 {
                     WriteToBlocks(entity);
                 }
-                return db.GetCollection<T>(_collectionName).InsertBulk(entities, batchSize);
+                return _collection.InsertBulk(entities, batchSize);
             }
 
         }
@@ -872,10 +905,11 @@ namespace IoTDBdotNET
         public BsonValue Min(BsonExpression keySelector)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min(keySelector);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Min(keySelector);
+            //}
 
         }
         /// <summary>
@@ -884,10 +918,11 @@ namespace IoTDBdotNET
         public BsonValue Min()
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min();
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Min();
+            //}
 
         }
         /// <summary>
@@ -896,10 +931,11 @@ namespace IoTDBdotNET
         public K Min<K>(Expression<Func<T, K>> keySelector)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Min(keySelector);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Min(keySelector);
+            //}
 
         }
         /// <summary>
@@ -908,10 +944,11 @@ namespace IoTDBdotNET
         public BsonValue Max(BsonExpression keySelector)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max(keySelector);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Max(keySelector);
+            //}
 
         }
         /// <summary>
@@ -920,10 +957,11 @@ namespace IoTDBdotNET
         public BsonValue Max()
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max();
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Max();
+            //}
 
         }
         /// <summary>
@@ -932,10 +970,11 @@ namespace IoTDBdotNET
         public K Max<K>(Expression<Func<T, K>> keySelector)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
-            {
-                return db.GetCollection<T>(_collectionName).Max(keySelector);
-            }
+            //lock(SyncRoot)
+            //lock(SyncRoot)
+            //{
+                return _collection.Max(keySelector);
+            //}
 
         }
         #endregion
@@ -957,7 +996,7 @@ namespace IoTDBdotNET
         #region Q
         public QueryBuilder<T> Query()
         {
-            return new QueryBuilder<T>(_database);
+            return new QueryBuilder<T>(_iotDb);
         }
 
 
@@ -977,15 +1016,16 @@ namespace IoTDBdotNET
 
         #region U
         /// <summary>
-        /// Insert or Update a document in this collection.
+        /// Insert or Update a document in this _collection.
         /// </summary>
         public bool Upsert(T entity)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                return db.GetCollection<T>(_collectionName).Upsert(entity);
+                return _collection.Upsert(entity);
             }
 
         }
@@ -995,27 +1035,29 @@ namespace IoTDBdotNET
         public int Upsert(IEnumerable<T> entities)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 foreach (var entity in entities)
                 {
                     WriteToBlocks(entity);
                 }
-                return db.GetCollection<T>(_collectionName).Upsert(entities);
+                return _collection.Upsert(entities);
             }
 
         }
 
         /// <summary>
-        /// Insert or Update a document in this collection.
+        /// Insert or Update a document in this _collection.
         /// </summary>
         public bool Upsert(BsonValue id, T entity)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                return db.GetCollection<T>(_collectionName).Upsert(id, entity);
+                return _collection.Upsert(id, entity);
             }
 
         }
@@ -1032,30 +1074,32 @@ namespace IoTDBdotNET
         }
         /// <summary
         /// <summary>
-        /// Update a document in this collection. Returns false if not found document in collection
+        /// Update a document in this _collection. Returns false if not found document in collection
         /// </summary>
         public bool Update(T entity)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                return db.GetCollection<T>(_collectionName).Update(entity);
+                return _collection.Update(entity);
             }
 
         }
 
 
         /// <summary>
-        /// Update a document in this collection. Returns false if not found document in collection
+        /// Update a document in this _collection. Returns false if not found document in collection
         /// </summary>
         public bool Update(BsonValue id, T entity)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 WriteToBlocks(entity);
-                return db.GetCollection<T>(_collectionName).Update(id, entity);
+                return _collection.Update(id, entity);
             }
 
         }
@@ -1066,13 +1110,14 @@ namespace IoTDBdotNET
         public int Update(IEnumerable<T> entities)
         {
 
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
                 foreach (var entity in entities)
                 {
                     WriteToBlocks(entity);
                 }
-                return db.GetCollection<T>(_collectionName).Update(entities);
+                return _collection.Update(entities);
             }
 
         }
@@ -1084,9 +1129,10 @@ namespace IoTDBdotNET
         public int UpdateMany(BsonExpression transform, BsonExpression predicate)
         {
             if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot)
             {
-                return db.GetCollection<T>(_collectionName).UpdateMany(transform, predicate);
+                return _collection.UpdateMany(transform, predicate);
             }
 
         }
@@ -1098,10 +1144,11 @@ namespace IoTDBdotNET
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
         {
             if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
-            using (var db = new LiteDatabase(ConnectionString))
+            //lock(SyncRoot)
+            lock(SyncRoot) 
             {
                 
-                return db.GetCollection<T>(_collectionName).UpdateMany(extend, predicate);
+                return _collection.UpdateMany(extend, predicate);
             }
 
         }
@@ -1109,6 +1156,15 @@ namespace IoTDBdotNET
         #endregion
 
         #region Base Functions
+
+        private ILiteCollection<T> Collection
+        {
+            get
+            {
+                
+                return Database.GetCollection<T>(_collectionName);
+            }
+        }
 
         protected override void InitializeDatabase()
         {
@@ -1125,6 +1181,7 @@ namespace IoTDBdotNET
                     try
                     {
                         CommitUpdate();
+                        
                     }
                     catch (Exception ex)
                     {
@@ -1165,9 +1222,9 @@ namespace IoTDBdotNET
             }
             if (entityList.Count > 0)
             {
-                using (var db = new LiteDatabase(ConnectionString))
+                lock(SyncRoot)
                 {
-                    var entities = db.GetCollection<T>(_collectionName);
+                    var entities = Collection;
                     entities.Update(entityList.Select(x => x.Value).ToList());
                 }
             }
