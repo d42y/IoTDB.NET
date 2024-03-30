@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 
 namespace IoTDBdotNET.FileDB
 {
-    public class FileClass
+    public class FileMetadata
     {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public int Revision { get; set; } = 1;
+        public string FileName { get; set; }
+        public string FileExtension { get; set; }
+        public int CurrentVersion { get; set; } = 1;
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-        public FileClass() { }
+        public FileMetadata() { }
     }
 }
