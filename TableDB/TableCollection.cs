@@ -282,13 +282,28 @@ namespace IoTDBdotNET
                         //atemp to delete child records
                         foreach(var item in childRecords)
                         {
-                            var childId = child.Id?.PropertyInfo.GetValue(item, null);
-                            if (childId == null) continue;
+                            BsonValue? childId = null;
+                            try
+                            {
+                                var val = child?.Id?.PropertyInfo.GetValue(item, null);
+                                if (val != null) childId = new BsonValue(val);
+                                else throw new Exception();
+                            } catch
+                            {
+                                if (child != null && child.Id != null && item.ContainsKey(child.Id.Name))
+                                {
+                                    childId = item[child.Id.Name];
+
+                                }
+                                else continue;
+                            }
+                            
+                            if (childId.IsNull) continue;
                             if (fk.Attribute is TableForeignKeyAttribute tfa)
                             {
                                 if (tfa.Constraint == TableConstraint.Cascading)
                                 {
-                                    var good = table.Delete(new(childId));
+                                    var good = table.Delete(childId);
                                     if (!good) throw new InternalErrorException($"Failed cascade delete record in child table {table.Name}.");
                                 } else if (tfa.Constraint == TableConstraint.SetNull)
                                 {
