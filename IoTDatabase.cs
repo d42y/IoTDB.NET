@@ -49,9 +49,10 @@ namespace IoTDBdotNET
 
         public ITableCollection<T> Tables<T>(string tableName) where T : class
         {
+            tableName = $"{tableName}_{typeof(T).Name}";
             if (!_tables.ContainsKey(tableName))
             {
-                _tables[tableName] = new TableCollection<T>(_tbPath, this);
+                _tables[tableName] = new TableCollection<T>(_tbPath, tableName, this);
                 ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
             }
 

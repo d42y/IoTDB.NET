@@ -4,14 +4,8 @@ using IoTDBdotNET.Base;
 using IoTDBdotNET.BlockDB;
 using IoTDBdotNET.Helper;
 using IoTDBdotNET.TableDB;
-using System;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Linq.Expressions;
-using System.Reflection;
-using System.Xml;
-using System.Xml.Linq;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace IoTDBdotNET
 {
@@ -35,7 +29,7 @@ namespace IoTDBdotNET
         #endregion
 
         #region Constructors
-        public TableCollection(string dbPath, string dbName, IoTDatabase iotDb) : base(dbPath, dbName)
+        public TableCollection(string dbPath, string tblName, IoTDatabase iotDb) : base(dbPath, tblName)
         {
             PreCheck();
         }
