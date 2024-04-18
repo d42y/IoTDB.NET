@@ -37,23 +37,32 @@ namespace IoTDBdotNET
         #region Tables
         public ITableCollection<T> Tables<T>() where T : class
         {
-            string name = typeof(T).Name;
-            if (!_tables.ContainsKey(name))
+            string tableName = typeof(T).Name;
+            if (!_tables.ContainsKey(tableName))
             {
-                _tables[name] = new TableCollection<T>(_tbPath, this);
-                ((TableCollection<T>)_tables[name]).ExceptionOccurred += OnExceptionOccurred;
-                //TableCollection<T> table = _tables[name];
-
+                _tables[tableName] = new TableCollection<T>(_tbPath, this);
+                ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
             }
             
-            return (ITableCollection<T>)_tables[name];
+            return (ITableCollection<T>)_tables[tableName];
         }
 
-        internal ITableCollection? GetTable(string name)
+        public ITableCollection<T> Tables<T>(string tableName) where T : class
         {
-            if (_tables.ContainsKey(name))
+            if (!_tables.ContainsKey(tableName))
             {
-                return (ITableCollection)_tables[name];
+                _tables[tableName] = new TableCollection<T>(_tbPath, this);
+                ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
+            }
+
+            return (ITableCollection<T>)_tables[tableName];
+        }
+
+        internal ITableCollection? GetTable(string tableName)
+        {
+            if (_tables.ContainsKey(tableName))
+            {
+                return (ITableCollection)_tables[tableName];
                 
 
             }

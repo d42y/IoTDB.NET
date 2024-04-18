@@ -25,7 +25,7 @@ namespace IoTDBdotNET
 
         #region Global Variables
         private readonly string _collectionName = "Collection";
-        private readonly ILiteCollection<T> _collection;
+        private ILiteCollection<T> _collection;
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
         private IoTDatabase _iotDb;
@@ -35,15 +35,30 @@ namespace IoTDBdotNET
         #endregion
 
         #region Constructors
+        public TableCollection(string dbPath, string dbName, IoTDatabase iotDb) : base(dbPath, dbName)
+        {
+            PreCheck();
+        }
         public TableCollection(string dbPath, IoTDatabase iotDb) : base(dbPath, typeof(T).Name)
+        {
+            PreCheck();
+
+            InitDb(iotDb);
+        }
+
+        private void PreCheck()
         {
             if (!HasIdProperty(typeof(T)))
             {
                 throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
             }
+        }
+
+        private void InitDb(IoTDatabase iotDb)
+        {
             SetGlobalIgnore<T>();
             _blocksInfo = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
-           
+
             _iotDb = iotDb;
             TableInfo = new TableInfo(typeof(T));
             foreach (var ft in TableInfo.ForeignTables)
@@ -66,9 +81,10 @@ namespace IoTDBdotNET
                     if (fk.Name.EndsWith("Id"))
                     {
                         var name = fk.Name.Substring(0, fk.Name.Length - "Id".Length);
-                        var tf = iotDb._tableInfos.FirstOrDefault(x=>x.Key == name).Value;
+                        var tf = iotDb._tableInfos.FirstOrDefault(x => x.Key == name).Value;
                         if (tf == null) continue;
-                        if (!tf.ChildTables.Any(x=>x.Name == table.Key)) {
+                        if (!tf.ChildTables.Any(x => x.Name == table.Key))
+                        {
                             tf.ChildTables.Add(table.Value);
                         }
 
@@ -78,9 +94,7 @@ namespace IoTDBdotNET
 
             _collection = Database.GetCollection<T>(_collectionName);
 
-
         }
-
         #endregion
 
         #region A
