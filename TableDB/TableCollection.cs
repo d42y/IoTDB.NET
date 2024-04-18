@@ -31,12 +31,11 @@ namespace IoTDBdotNET
         #region Constructors
         public TableCollection(string dbPath, string tblName, IoTDatabase iotDb) : base(dbPath, tblName)
         {
-            PreCheck();
+            InitDb(iotDb);
         }
         public TableCollection(string dbPath, IoTDatabase iotDb) : base(dbPath, typeof(T).Name)
         {
-            PreCheck();
-
+            
             InitDb(iotDb);
         }
 
@@ -50,6 +49,7 @@ namespace IoTDBdotNET
 
         private void InitDb(IoTDatabase iotDb)
         {
+            PreCheck();
             SetGlobalIgnore<T>();
             _blocksInfo = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
 
