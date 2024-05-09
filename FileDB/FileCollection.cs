@@ -145,7 +145,8 @@ namespace IoTDBdotNET.FileDB
 
             var newVersion = fileMetadata.CurrentVersion + 1;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var fileName = $"{newVersion}.{fileMetadata.FileExtension}";
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var fileName = $"{newVersion}.{ext}";
             var newFilePath = Path.Combine(fileDirectory, fileName);
             File.Copy(filePath, newFilePath, true);
 
@@ -178,7 +179,8 @@ namespace IoTDBdotNET.FileDB
 
             var fileVersion = version ?? fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{fileMetadata.FileExtension}");
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             var newCheckoutRecord = new FileCheckoutRecord
             {
@@ -211,7 +213,8 @@ namespace IoTDBdotNET.FileDB
 
             var newVersion = fileMetadata.CurrentVersion + 1;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var fileName = $"{newVersion}.{fileMetadata.FileExtension}";
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var fileName = $"{newVersion}.{ext}";
             var newFilePath = Path.Combine(fileDirectory, fileName);
 
             using (var fileStream = File.Create(newFilePath))
@@ -270,7 +273,8 @@ namespace IoTDBdotNET.FileDB
 
             var fileVersion = version ?? fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{fileMetadata.FileExtension}");
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             if (!File.Exists(filePath))
             {
@@ -523,14 +527,24 @@ namespace IoTDBdotNET.FileDB
 
             var fileVersion = fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{fileMetadata.FileExtension}");
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             LogFileAccess(user, fileId, FileOperation.Get); // Assuming FileOperation enum includes a Get operation
 
             return filePath;
         }
 
-        public void GetFileToStream(string user, Guid fileId, Stream outputStream)
+        public FileMetadata? GetFileMetadata(Guid fileId)
+        {
+            var filesCollection = Database.GetCollection<FileMetadata>("files");
+            var fileMetadata = filesCollection.FindById(fileId);
+            
+            return fileMetadata;
+        }
+
+
+        public FileMetadata GetFileToStream(string user, Guid fileId, Stream outputStream)
         {
             var filesCollection = Database.GetCollection<FileMetadata>("files");
             var fileMetadata = filesCollection.FindById(fileId);
@@ -538,7 +552,8 @@ namespace IoTDBdotNET.FileDB
 
             var fileVersion = fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{fileMetadata.FileExtension}");
+            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
+            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             if (!File.Exists(filePath))
             {
@@ -551,6 +566,7 @@ namespace IoTDBdotNET.FileDB
             }
 
             LogFileAccess(user, fileId, FileOperation.Get); // Log the get operation
+            return fileMetadata;
         }
 
         public List<FileMetadata> GetFiles()

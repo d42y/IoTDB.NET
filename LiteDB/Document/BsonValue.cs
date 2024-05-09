@@ -317,6 +317,7 @@ namespace IoTDBdotNET
         // Int64
         public static implicit operator Int64(BsonValue value)
         {
+            
             return (Int64)value.RawValue;
         }
 

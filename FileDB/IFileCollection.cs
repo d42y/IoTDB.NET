@@ -14,7 +14,8 @@
         string GetFilePath(string user, Guid fileId);
         FileRecord GetFileRecord(Guid fileId);
         List<FileMetadata> GetFiles();
-        void GetFileToStream(string user, Guid fileId, Stream outputStream);
+        FileMetadata? GetFileMetadata(Guid fileId);
+        FileMetadata GetFileToStream(string user, Guid fileId, Stream outputStream);
         void RenameFile(string user, Guid fileId, string newUserFileName);
     }
 }
