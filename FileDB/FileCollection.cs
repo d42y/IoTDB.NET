@@ -90,6 +90,7 @@ namespace IoTDBdotNET.FileDB
                 if (isNew)
                 {
                     fileMetadata = new();
+                    fileMetadata.Id = fileId;
                 }
                 else
                 {
@@ -98,7 +99,7 @@ namespace IoTDBdotNET.FileDB
             }
 
             var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
-            var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Username == user && x.Status == FileCheckoutStatus.Checkout);
+            var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
             if (checkoutRecord == null) //no checkout or new file
             {
                 
@@ -162,7 +163,7 @@ namespace IoTDBdotNET.FileDB
             checkoutRecord.Timestamp = DateTime.UtcNow; // Update timestamp to reflect check-in time
             if (isNew)
             {
-                filesCollection.Insert(fileMetadata);
+                filesCollection.Insert(fileMetadata.Id, fileMetadata);
                 checkoutCollection.Insert(checkoutRecord);
                 LogFileAccess(user, fileId, FileOperation.New);
             }
