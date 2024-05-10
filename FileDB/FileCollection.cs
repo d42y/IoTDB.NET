@@ -101,10 +101,9 @@ namespace IoTDBdotNET.FileDB
             var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Username == user && x.Status == FileCheckoutStatus.Checkout);
             if (checkoutRecord == null) //no checkout or new file
             {
-                if (isNew)
-                {
+                
                     checkoutRecord = new();
-                }
+                
             }
             else if (!checkoutRecord.Username.Equals(user))
             {
@@ -156,18 +155,20 @@ namespace IoTDBdotNET.FileDB
 
             fileMetadata.CurrentVersion = newVersion;
             fileMetadata.Timestamp = DateTime.UtcNow;
-            filesCollection.Update(fileMetadata);
+            
 
             checkoutRecord.CheckinVersion = newVersion;
             checkoutRecord.Status = FileCheckoutStatus.Checkin;
             checkoutRecord.Timestamp = DateTime.UtcNow; // Update timestamp to reflect check-in time
             if (isNew)
             {
+                filesCollection.Insert(fileMetadata);
                 checkoutCollection.Insert(checkoutRecord);
                 LogFileAccess(user, fileId, FileOperation.New);
             }
             else
             {
+                filesCollection.Update(fileMetadata);
                 checkoutCollection.Update(checkoutRecord);
                 LogFileAccess(user, fileId, FileOperation.CheckIn);
             }
