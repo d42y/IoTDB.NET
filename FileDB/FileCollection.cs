@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
@@ -98,22 +99,27 @@ namespace IoTDBdotNET.FileDB
 
             var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
             var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Username == user && x.Status == FileCheckoutStatus.Checkout);
-            if (checkoutRecord == null)
+            if (checkoutRecord == null) //no checkout or new file
             {
                 if (isNew)
                 {
                     checkoutRecord = new();
-                } else
-                {
-                    throw new InvalidOperationException("No active checkout by this user.");
                 }
-                
-            } else if (isNew)
-            {
-                throw new InvalidOperationException("File exist: cannot add new file with same id.");
             }
+            else if (!checkoutRecord.Username.Equals(user))
+            {
+                //checked out by another user
+                throw new InvalidOperationException("No active checkout by this user.");
+            }
+            else
+            { //checked out by current user
 
+                if (isNew) //new but file already exist
+                {
+                    throw new InvalidOperationException("File exist: cannot add new file with same id.");
+                }
 
+            }
             var newVersion = fileMetadata.CurrentVersion + 1;
 
             if (string.IsNullOrEmpty(fileMetadata.FileName)) fileMetadata.FileName = Path.GetExtension(fileMetadata.FileName);
