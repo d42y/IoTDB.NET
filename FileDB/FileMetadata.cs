@@ -11,7 +11,7 @@ namespace IoTDBdotNET.FileDB
         public Guid Id { get; set; }
         public string FileName { get; set; }
         public string FileExtension { get; set; }
-        public int CurrentVersion { get; set; } = 1;
+        public int CurrentVersion { get; set; } = 0;
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public FileMetadata() { }
     }

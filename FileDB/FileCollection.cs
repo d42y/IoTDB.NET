@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -22,37 +23,7 @@ namespace IoTDBdotNET.FileDB
         public Guid AddNewFile(string user, string filePath)
         {
             var fileId = Guid.NewGuid();
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            Directory.CreateDirectory(fileDirectory);
-
-            var version = 1;
-            var fileName = Path.GetFileNameWithoutExtension(filePath);
-            var extension = Path.GetExtension(filePath);
-            var newFilePath = Path.Combine(fileDirectory, $"{version}.{extension}");
-            File.Copy(filePath, newFilePath);
-
-
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            filesCollection.Insert(new FileMetadata
-            {
-                Id = fileId,
-                CurrentVersion = version,
-                FileName = fileName,
-                FileExtension = extension
-            });
-
-            var newCheckinRecord = new FileCheckoutRecord
-            {
-                FileId = fileId,
-                CheckoutVersion = 0,
-                CheckinVersion = version,
-                Username = user,
-                Timestamp = DateTime.UtcNow,
-                Status = FileCheckoutStatus.Checkin
-            };
-            Database.GetCollection<FileCheckoutRecord>("checkoutRecords").Insert(newCheckinRecord);
-
-            LogFileAccess(user, fileId, FileOperation.New);
+            CheckIn(user, fileId, null, filePath, true);
 
             return fileId;
         }
@@ -60,34 +31,7 @@ namespace IoTDBdotNET.FileDB
         public Guid AddFileFromStream(string user, Stream fileStream, string originalFileName)
         {
             var fileId = Guid.NewGuid();
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            Directory.CreateDirectory(fileDirectory);
-
-            var version = 1;
-            var fileName = Path.GetFileNameWithoutExtension(originalFileName);
-            var extension = Path.GetExtension(originalFileName);
-            var newFilePath = Path.Combine(fileDirectory, $"{version}.{extension}");
-            using (var fileOutput = File.Create(newFilePath))
-            {
-                fileStream.CopyTo(fileOutput);
-            }
-
-
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            filesCollection.Insert(new FileMetadata { Id = fileId, CurrentVersion = version, FileName = originalFileName });
-
-            var newCheckinRecord = new FileCheckoutRecord
-            {
-                FileId = fileId,
-                CheckoutVersion = 0,
-                CheckinVersion = version,
-                Username = user,
-                Timestamp = DateTime.UtcNow,
-                Status = FileCheckoutStatus.Checkin
-            };
-            Database.GetCollection<FileCheckoutRecord>("checkoutRecords").Insert(newCheckinRecord);
-
-            LogFileAccess(user, fileId, FileOperation.New);
+            CheckIn(user, fileId, fileStream, null, true, originalFileName);
 
             return fileId;
 
@@ -129,26 +73,80 @@ namespace IoTDBdotNET.FileDB
         #endregion
 
         #region Check In/Out
-        public void CheckInFile(string user, Guid fileId, string filePath)
+
+        private void CheckIn (string user, Guid fileId, Stream? inputStream, string? filePath, bool isNew = false, string originalFileName = "")
         {
+            if (inputStream == null && string.IsNullOrEmpty(filePath) && isNew) throw new InvalidOperationException("New file is null.");
+            
+            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
+            Directory.CreateDirectory(fileDirectory);
+
+  
             var filesCollection = Database.GetCollection<FileMetadata>("files");
             var fileMetadata = filesCollection.FindById(fileId);
-            if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
-
+            if (fileMetadata == null)
+            {
+                if (isNew)
+                {
+                    fileMetadata = new();
+                }
+                else
+                {
+                    throw new FileNotFoundException("File ID not found in database.");
+                }
+            }
 
             var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
             var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Username == user && x.Status == FileCheckoutStatus.Checkout);
             if (checkoutRecord == null)
             {
-                throw new InvalidOperationException("No active checkout by this user.");
+                if (isNew)
+                {
+                    checkoutRecord = new();
+                } else
+                {
+                    throw new InvalidOperationException("No active checkout by this user.");
+                }
+                
+            } else if (isNew)
+            {
+                throw new InvalidOperationException("File exist: cannot add new file with same id.");
             }
 
+
             var newVersion = fileMetadata.CurrentVersion + 1;
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
+
+            if (string.IsNullOrEmpty(fileMetadata.FileName)) fileMetadata.FileName = Path.GetExtension(fileMetadata.FileName);
+            if (string.IsNullOrEmpty(fileMetadata.FileExtension)) fileMetadata.FileExtension = Path.GetExtension(fileMetadata.FileName);
             var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var fileName = $"{newVersion}.{ext}";
+            if (isNew)
+            {
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    fileMetadata.FileName = originalFileName;
+                    fileMetadata.FileExtension = Path.GetExtension(originalFileName);
+                } else
+                {
+                    fileMetadata.FileName = Path.GetFileName(originalFileName);
+                    fileMetadata.FileExtension = Path.GetExtension(filePath).Trim('.');
+                }
+            }
+            if (string.IsNullOrEmpty(fileMetadata.FileName)) fileMetadata.FileName = "file";
+            if (string.IsNullOrEmpty(fileMetadata.FileExtension)) fileMetadata.FileExtension = "dat";
+            var fileName = $"{newVersion}.{fileMetadata.FileExtension}";
+            
             var newFilePath = Path.Combine(fileDirectory, fileName);
-            File.Copy(filePath, newFilePath, true);
+            if (inputStream != null)
+            {
+                using (var fileStream = File.Create(newFilePath))
+                {
+                    inputStream.CopyTo(fileStream);
+                }
+            }
+            else if (filePath != null)
+            {
+                File.Copy(filePath, newFilePath, true);
+            }
 
             fileMetadata.CurrentVersion = newVersion;
             fileMetadata.Timestamp = DateTime.UtcNow;
@@ -157,82 +155,28 @@ namespace IoTDBdotNET.FileDB
             checkoutRecord.CheckinVersion = newVersion;
             checkoutRecord.Status = FileCheckoutStatus.Checkin;
             checkoutRecord.Timestamp = DateTime.UtcNow; // Update timestamp to reflect check-in time
-            checkoutCollection.Update(checkoutRecord);
-
-            LogFileAccess(user, fileId, FileOperation.CheckIn);
-        }
-
-        public string CheckOutFile(string user, Guid fileId, int? version = null)
-        {
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            var fileMetadata = filesCollection.FindById(fileId);
-            if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
-
-            var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
-            // Ensure only one checkout at a time
-            var existingCheckout = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
-            if (existingCheckout != null)
+            if (isNew)
             {
-                throw new InvalidOperationException("File is already checked out.");
+                checkoutCollection.Insert(checkoutRecord);
+                LogFileAccess(user, fileId, FileOperation.New);
             }
-
-
-            var fileVersion = version ?? fileMetadata.CurrentVersion;
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
-
-            var newCheckoutRecord = new FileCheckoutRecord
+            else
             {
-                FileId = fileId,
-                CheckoutVersion = fileVersion,
-                Username = user,
-                Timestamp = DateTime.UtcNow,
-                Status = FileCheckoutStatus.Checkout
-            };
-            checkoutCollection.Insert(newCheckoutRecord);
-
-
-            LogFileAccess(user, fileId, FileOperation.CheckOut);
-
-            return filePath;
+                checkoutCollection.Update(checkoutRecord);
+                LogFileAccess(user, fileId, FileOperation.CheckIn);
+            }
+            
+            
         }
+        public void CheckInFile(string user, Guid fileId, string filePath)
+        {
+            CheckIn(user, fileId, null, filePath);
+        }
+
 
         public void CheckInFileFromStream(string user, Guid fileId, Stream inputStream)
         {
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            var fileMetadata = filesCollection.FindById(fileId);
-            if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
-
-            var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
-            var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Username == user && x.Status == FileCheckoutStatus.Checkout);
-            if (checkoutRecord == null)
-            {
-                throw new InvalidOperationException("No active checkout by this user.");
-            }
-
-            var newVersion = fileMetadata.CurrentVersion + 1;
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var fileName = $"{newVersion}.{ext}";
-            var newFilePath = Path.Combine(fileDirectory, fileName);
-
-            using (var fileStream = File.Create(newFilePath))
-            {
-                inputStream.CopyTo(fileStream);
-            }
-
-            fileMetadata.CurrentVersion = newVersion;
-            fileMetadata.Timestamp = DateTime.UtcNow;
-            filesCollection.Update(fileMetadata);
-
-
-            checkoutRecord.CheckinVersion = newVersion;
-            checkoutRecord.Status = FileCheckoutStatus.Checkin;
-            checkoutRecord.Timestamp = DateTime.UtcNow; // Update timestamp to reflect check-in time
-            checkoutCollection.Update(checkoutRecord);
-
-            LogFileAccess(user, fileId, FileOperation.CheckIn);
+            CheckIn(user, fileId, inputStream, null);
 
             /* Example using CheckInFileFromStream
              * 
@@ -257,7 +201,7 @@ namespace IoTDBdotNET.FileDB
              */
         }
 
-        public FileMetadata CheckOutFileToStream(string user, Guid fileId, Stream outputStream, int? version = null)
+        public FileMetadata CheckOutFile(string user, Guid fileId, out string filePath, int? version = null)
         {
             var filesCollection = Database.GetCollection<FileMetadata>("files");
             var fileMetadata = filesCollection.FindById(fileId);
@@ -268,35 +212,55 @@ namespace IoTDBdotNET.FileDB
             var existingCheckout = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
             if (existingCheckout != null)
             {
-                throw new InvalidOperationException("File is already checked out.");
+                //throw error if checked out by another use. 
+                if (!existingCheckout.Username.Equals(user, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("File is already checked out.");
+                }
+                //at this point, it  is the same checked out user. Check if checked out version is the same.
+                else if ((version != null && version > 0) && existingCheckout.CheckoutVersion != version)
+                {
+                    throw new InvalidOperationException($"User [{user}] checked out file version [{existingCheckout.CheckoutVersion}] on [{existingCheckout.Timestamp}].");
+                }
+
             }
 
+            //ok to send file to user
             var fileVersion = version ?? fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
             var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
+            filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             if (!File.Exists(filePath))
             {
                 throw new FileNotFoundException("Requested file version does not exist.");
             }
 
+            if (existingCheckout == null)
+            {
+                var newCheckoutRecord = new FileCheckoutRecord
+                {
+                    FileId = fileId,
+                    CheckoutVersion = fileVersion,
+                    Username = user,
+                    Timestamp = DateTime.UtcNow,
+                    Status = FileCheckoutStatus.Checkout
+                };
+                checkoutCollection.Insert(newCheckoutRecord);
+            }
+            LogFileAccess(user, fileId, FileOperation.CheckOut);
+
+            return fileMetadata;
+        }
+        public FileMetadata CheckOutFileToStream(string user, Guid fileId, Stream outputStream, int? version = null)
+        {
+
+            var fileMetadata = CheckOutFile(user, fileId, out string filePath, version);
+
             using (var fileStream = File.OpenRead(filePath))
             {
                 fileStream.CopyTo(outputStream);
             }
-
-            var newCheckoutRecord = new FileCheckoutRecord
-            {
-                FileId = fileId,
-                CheckoutVersion = fileVersion,
-                Username = user,
-                Timestamp = DateTime.UtcNow,
-                Status = FileCheckoutStatus.Checkout
-            };
-            checkoutCollection.Insert(newCheckoutRecord);
-
-            LogFileAccess(user, fileId, FileOperation.CheckOut);
 
             return fileMetadata;
             /* Example using CheckOutFileToStream
@@ -324,13 +288,17 @@ namespace IoTDBdotNET.FileDB
              */
         }
 
-        public void AbandonCheckout(string user, Guid fileId)
+        public void AbandonCheckout(string user, Guid fileId, bool force = false)
         {
             var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
             var checkoutRecord = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
-            if (checkoutRecord == null || checkoutRecord.Username != user)
+            if (checkoutRecord == null)
             {
-                throw new InvalidOperationException("No active checkout by this user to abandon.");
+                return;
+            }
+            else if (checkoutRecord.Username != user && !force)
+            {
+                throw new InvalidOperationException("Cannot abandon checkout by other user.");
             }
 
             checkoutRecord.Status = FileCheckoutStatus.Abandon;
@@ -404,9 +372,22 @@ namespace IoTDBdotNET.FileDB
 
         public void DeleteFile(string user, Guid fileId)
         {
+
             var filesCollection = Database.GetCollection<FileMetadata>("files");
             var fileMetadata = filesCollection.FindById(fileId);
             if (fileMetadata == null) return; // File doesn't exist, no action needed
+
+            var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
+            // Is file checked out?
+            var existingCheckout = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
+            if (existingCheckout != null)
+            {
+                //throw error if checked out by another use. 
+                if (!existingCheckout.Username.Equals(user, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("File is already checked out.");
+                }
+            }
 
             // Optional: Delete physical files
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
@@ -519,46 +500,34 @@ namespace IoTDBdotNET.FileDB
         #endregion
 
         #region G
-        public string GetFilePath(string user, Guid fileId)
+        public FileMetadata GetFilePath(string user, Guid fileId, out string filePath)
         {
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            var fileMetadata = filesCollection.FindById(fileId);
+
+            var fileMetadata = GetFileMetadata(fileId);
             if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
 
             var fileVersion = fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
             var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
+            filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
             LogFileAccess(user, fileId, FileOperation.Get); // Assuming FileOperation enum includes a Get operation
 
-            return filePath;
+            return fileMetadata;
         }
 
         public FileMetadata? GetFileMetadata(Guid fileId)
         {
             var filesCollection = Database.GetCollection<FileMetadata>("files");
             var fileMetadata = filesCollection.FindById(fileId);
-            
+
             return fileMetadata;
         }
 
 
         public FileMetadata GetFileToStream(string user, Guid fileId, Stream outputStream)
         {
-            var filesCollection = Database.GetCollection<FileMetadata>("files");
-            var fileMetadata = filesCollection.FindById(fileId);
-            if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
-
-            var fileVersion = fileMetadata.CurrentVersion;
-            var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
-            var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            var filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
-
-            if (!File.Exists(filePath))
-            {
-                throw new FileNotFoundException("Requested file version does not exist.");
-            }
+            var fileMetadata = GetFilePath(user, fileId, out string filePath);
 
             using (var fileStream = File.OpenRead(filePath))
             {
