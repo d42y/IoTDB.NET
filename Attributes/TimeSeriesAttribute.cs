@@ -6,13 +6,12 @@ using System.Threading.Tasks;
 
 namespace IoTDBdotNET.Attributes
 {
-    [AttributeUsage(AttributeTargets.Property)] // Apply to properties only.
-    public class UniqueValueAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Property)]
+    public class TimeSeriesAttribute : Attribute
     {
         public string Description { get; set; } = string.Empty;
-
-        public UniqueValueAttribute() { }
-        public UniqueValueAttribute(string description)
+        public TimeSeriesAttribute() { }
+        public TimeSeriesAttribute(string description)
         {
             Description = description;
         }

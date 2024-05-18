@@ -30,17 +30,17 @@ namespace IoTDBdotNET
             if (!Directory.Exists(_flPath)) throw new DirectoryNotFoundException($"Unable to create files directory. {_flPath}");
             TimeSeries = new TimeSeriesDatabase(_tsPath);
             TimeSeries.ExceptionOccurred += OnExceptionOccurred;
-            
-            
+
         }
 
         #region Tables
+        public string TableDbPath { get { return _tbPath; } }
         public ITableCollection<T> Tables<T>() where T : class
         {
             string tableName = typeof(T).Name;
             if (!_tables.ContainsKey(tableName))
             {
-                _tables[tableName] = new TableCollection<T>(_tbPath, this);
+                _tables[tableName] = new TableCollection<T>(this);
                 ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
             }
             
@@ -52,7 +52,7 @@ namespace IoTDBdotNET
             tableName = $"{tableName}_{typeof(T).Name}";
             if (!_tables.ContainsKey(tableName))
             {
-                _tables[tableName] = new TableCollection<T>(_tbPath, tableName, this);
+                _tables[tableName] = new TableCollection<T>(this, tableName);
                 ((TableCollection<T>)_tables[tableName]).ExceptionOccurred += OnExceptionOccurred;
             }
 

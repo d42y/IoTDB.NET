@@ -5,6 +5,7 @@ using IoTDBdotNET.BlockDB;
 using IoTDBdotNET.Helper;
 using IoTDBdotNET.TableDB;
 using System.Collections.Concurrent;
+using System.Data;
 using System.Linq.Expressions;
 
 namespace IoTDBdotNET
@@ -23,36 +24,25 @@ namespace IoTDBdotNET
         private bool _processingQueue = false;
         private ConcurrentQueue<T> _updateEntityQueue = new ConcurrentQueue<T>();
         private IoTDatabase _iotDb;
-        private List<ColumnInfo> _blocksInfo = new();
+        private List<ColumnInfo> _blockChainAttributes = new();
+        private List<ColumnInfo> _timeSeriesAttributes = new();
         private ConcurrentDictionary<string, BlockCollection> _blocks = new();
         public TableInfo TableInfo { get; private set; }
         #endregion
 
         #region Constructors
-        public TableCollection(string dbPath, string tblName, IoTDatabase iotDb) : base(dbPath, tblName)
-        {
-            InitDb(iotDb);
-        }
-        public TableCollection(string dbPath, IoTDatabase iotDb) : base(dbPath, typeof(T).Name)
-        {
-            
-            InitDb(iotDb);
-        }
-
-        private void PreCheck()
-        {
-            if (!HasIdProperty(typeof(T)))
-            {
-                throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
-            }
-        }
-
-        private void InitDb(IoTDatabase iotDb)
+        /// <summary>
+        /// Create new table
+        /// </summary>
+        /// <param name="iotDb"></param>
+        /// <param name="dbPath"></param>
+        /// <param name="tblName"></param>
+        public TableCollection(IoTDatabase iotDb, string tblName = "") : base(iotDb.TableDbPath, string.IsNullOrEmpty(tblName)?typeof(T).Name:tblName)
         {
             PreCheck();
             SetGlobalIgnore<T>();
-            _blocksInfo = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
-
+            _blockChainAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<BlockChainValueAttribute>(typeof(T)).ToList();
+            _timeSeriesAttributes = ReflectionHelper.GetTypeColumnsWithAttribute<TimeSeriesAttribute>(typeof(T)).ToList();
             _iotDb = iotDb;
             TableInfo = new TableInfo(typeof(T));
             foreach (var ft in TableInfo.ForeignTables)
@@ -87,8 +77,20 @@ namespace IoTDBdotNET
             }
 
             _collection = Database.GetCollection<T>(_collectionName);
-
         }
+
+
+        
+
+        private void PreCheck()
+        {
+            if (!HasIdProperty(typeof(T)))
+            {
+                throw new KeyNotFoundException("Table missing Id property with int, long, or Guid data type.");
+            }
+        }
+
+        
         #endregion
 
         #region A
@@ -186,27 +188,27 @@ namespace IoTDBdotNET
         #endregion
 
         #region BlockChain
-        public List<ColumnInfo> BlocksInfo
+        public List<ColumnInfo> BlockChainAttributes
         {
             get
             {
-                return _blocksInfo;
+                return _blockChainAttributes;
             }
         }
 
-        public ColumnInfo TagPropertyAsBlockInfo(string name, string description = "")
+        public ColumnInfo TagColumnAsBlockChain(string name, string description = "")
         {
             var prop = ReflectionHelper.GetProperty(typeof(T), name);
             if (prop == null) throw new KeyNotFoundException(name);
             BlockChainValueAttribute attribute = new BlockChainValueAttribute(description);
             ColumnInfo bi = new(prop, attribute);
-            _blocksInfo.Add(bi);
+            _blockChainAttributes.Add(bi);
             return bi;
         }
 
         public IBlockCollection? Blocks(string name)
         {
-            if (!_blocksInfo.Any(x => x.Name == name))
+            if (!_blockChainAttributes.Any(x => x.Name == name))
             {
                 throw new EntryPointNotFoundException($"{typeof(T).Name} does not have BlockChainValueAttribute with name {name}.");
             }
@@ -223,7 +225,7 @@ namespace IoTDBdotNET
 
         private void WriteToBlocks (T entity)
         {
-            foreach(var bi in _blocksInfo)
+            foreach(var bi in _blockChainAttributes)
             {
                 var value = bi.PropertyInfo.GetValue(entity);
                 if (value == null) continue;
@@ -825,10 +827,8 @@ namespace IoTDBdotNET
         #endregion
 
         #region I
-        /// <summary>
-        /// Insert a new entity to this _collection. Document Id must be a new value in collection - Returns document Id
-        /// </summary>
-        public BsonValue Insert(T entity)
+
+        private void CheckConstraints(T entity)
         {
             foreach (var fk in TableInfo.ForeignKeys)
             {
@@ -846,6 +846,14 @@ namespace IoTDBdotNET
                         var parentRecords = table.Find("Id", bv, Base.Comparison.Equals);
                         if (parentRecords.Count < 1) throw new MissingMemberException($"Table {tableName} doesn't have record with foreign key Id.");
                     }
+
+                    if (tfk.RelationshipOneTo == RelationshipOneTo.One)
+                    {
+                        var val = fk.PropertyInfo.GetValue(entity, null);
+                        if (val == null) throw new NullReferenceException($"Foreign key {fk.Name} value is null");
+                        var items = Find(fk.Name, val?.ToString() ?? string.Empty, Comparison.Equals);
+                        if (items.Count > 0) throw new ConstraintException($"Relationship One to One Constraint: TRUE. One item existed.");
+                    }
                 }
             }
 
@@ -855,10 +863,18 @@ namespace IoTDBdotNET
                 {
                     var val = unique.PropertyInfo.GetValue(entity, null);
 
-                    var records = Find(unique.Name, val?.ToString()??string.Empty);
+                    var records = Find(unique.Name, val?.ToString() ?? string.Empty);
                     if (records.Count > 0) throw new InvalidDataException($"Unique Constraint: Column name {unique.Name} with unique attribute has record with same value.");
                 }
             }
+        }
+
+        /// <summary>
+        /// Insert a new entity to this _collection. Document Id must be a new value in collection - Returns document Id
+        /// </summary>
+        public BsonValue Insert(T entity)
+        {
+            CheckConstraints(entity);
 
             //lock(SyncRoot)
             lock(SyncRoot)
@@ -874,9 +890,10 @@ namespace IoTDBdotNET
         /// </summary>
         public void Insert(BsonValue id, T entity)
         {
+            CheckConstraints(entity);
 
             //lock(SyncRoot)
-            lock(SyncRoot)
+            lock (SyncRoot)
             {
                 WriteToBlocks(entity);
                 _collection.Insert(id, entity);
@@ -889,9 +906,12 @@ namespace IoTDBdotNET
         /// </summary>
         public int Insert(IEnumerable<T> entities)
         {
-
+            foreach (var entity in entities)
+            {
+                CheckConstraints(entity);
+            }
             //lock(SyncRoot)
-            lock(SyncRoot)
+            lock (SyncRoot)
             {
                 foreach (var entity in entities)
                 {
@@ -907,9 +927,12 @@ namespace IoTDBdotNET
         /// </summary>
         public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
         {
-
+            foreach (var entity in entities)
+            {
+                CheckConstraints(entity);
+            }
             //lock(SyncRoot)
-            lock(SyncRoot)
+            lock (SyncRoot)
             {
                 foreach (var entity in entities)
                 {
@@ -1028,7 +1051,7 @@ namespace IoTDBdotNET
         #region Set
         public long SetAll(string columnName, BsonValue? value)
         {
-            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
+            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
 
             // Calling the UpdateMany method with the specified transform and predicate expressions.
             var updatedCount = UpdateMany($"{{ {columnName}: '{value}' }}", "_id > 0");
@@ -1091,7 +1114,7 @@ namespace IoTDBdotNET
         /// <param name="entity"></param>
         public void UpdateQueue(T entity)
         {
-            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateQueue is not supported for T with BlockChainValue attributes"); }
+            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateQueue is not supported for T with BlockChainValue attributes"); }
             _updateEntityQueue.Enqueue(entity);
 
         }
@@ -1151,7 +1174,7 @@ namespace IoTDBdotNET
         /// </summary>
         public int UpdateMany(BsonExpression transform, BsonExpression predicate)
         {
-            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
+            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
             //lock(SyncRoot)
             lock(SyncRoot)
             {
@@ -1166,7 +1189,7 @@ namespace IoTDBdotNET
         /// </summary>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
         {
-            if (_blocksInfo.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
+            if (_blockChainAttributes.Count > 0) { throw new NotSupportedException("UpdateMany is not supported for T with BlockChainValue attributes"); }
             //lock(SyncRoot)
             lock(SyncRoot) 
             {

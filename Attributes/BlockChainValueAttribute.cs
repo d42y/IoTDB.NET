@@ -9,9 +9,10 @@ namespace IoTDBdotNET.Attributes
     [AttributeUsage(AttributeTargets.Property)] // Apply to properties only.
     public class BlockChainValueAttribute : Attribute
     {
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
 
-        public BlockChainValueAttribute(string description = "")
+        public BlockChainValueAttribute() { }
+        public BlockChainValueAttribute(string description)
         {
             Description = description;
         }

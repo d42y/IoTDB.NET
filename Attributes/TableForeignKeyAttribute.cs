@@ -12,9 +12,12 @@ namespace IoTDBdotNET.Attributes
     {
         public Type Type { get; set; }
         public TableConstraint Constraint { get; set; } = TableConstraint.NoAction;
-        public RelationshipOneTo RelationshipOneTo { get; set; }
-        public string Description { get; set; }
+        public RelationshipOneTo RelationshipOneTo { get; set; } = RelationshipOneTo.Many;
+        public string Description { get; set; } = string.Empty;
 
+        public TableForeignKeyAttribute(Type type) { 
+            Type = type;
+        }
         public TableForeignKeyAttribute(Type type, TableConstraint constraint=TableConstraint.Cascading, RelationshipOneTo relationshipOneTo = RelationshipOneTo.Many, string description = "")
         {
             Type = type;
