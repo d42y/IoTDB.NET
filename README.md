@@ -8,6 +8,10 @@ IoTDBdotNET is optimized for C# applications, offering a lightweight alternative
 
 ## Versioning
 Version format of X.Y.Z (Major.Minor.Patch).
+X.Y.Z-beta (version under beta test).
+X.Y.Z-rc.1 (version under release candidate 1).
+X.Y.Z-rc.2 (version under release candidate 2).
+NuGet package release after rc 2.
 
 ## Goals
 
@@ -208,7 +212,8 @@ Unloading or closing IoTDB is not necessary. The library handles closure and rec
 
 ## Contributing
 
-Beta relase. No outside contribution at this time.
+Creating a robust and user-friendly database equivalent library requires significant effort and contributions from the public. However, during the current initial beta testing phase, I do not plan to accept outside contributions yet.
+
 
 ## License
 This library is licensed under the MIT License. This means you are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, provided you include the following conditions in your distribution:
