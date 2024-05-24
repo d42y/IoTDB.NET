@@ -42,11 +42,12 @@ var dbPath = @"c:\temp";
 var iotData = new IoTDatabase(dbName, dbPath);
 ```
 This create an empty database in your c:\temp directory
+
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/51d59c34-2c5f-4728-aa95-72769172b832)
 
 ### Using IoTDB Table
 #### 1. Create a public class for your data structure
-'''csharp
+```csharp
 public class Friend
 {
     public Guid Id { get; set; }
@@ -72,10 +73,12 @@ static void Main(string[] args)
 }
 ```
 This create an empty table in the Tables folder.
+
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/b614ae68-d48d-4ab7-ab6d-936b70d22b06)
 
 What if you also want to create a table called BestFriend?
 Create another derived class from friend.
+
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/3a3f650f-fd27-4328-98c1-0bd9c4cf7b0e)
 
 #### 3. Find and create new record
@@ -98,6 +101,7 @@ if (friend == null )
 //display record
 Console.WriteLine($"Success: Id [{friend.Id}] Name [{friend.Name}]");
 ```
+
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/0f78a0b8-4c37-4fc4-9aa8-67dc73e9fb12)
 
 
@@ -154,6 +158,7 @@ if (address == null)
 //display record
 Console.WriteLine($"Success: Id [{address.Id}] FriendId [{friend.Id}] Street [{address.Street}]");
 ```
+
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/c138ecb6-4afd-477f-bdd5-ac1e306e8eff)
 
 #### 5. Foreign Key Constraint Error
