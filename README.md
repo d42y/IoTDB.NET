@@ -190,134 +190,15 @@ catch (Exception ex)
 
 
 ### Initialize Database Tables
-Database initialization is REQUIRED if you have foreign key.
-Table is nto create until you first use it. If you
-### Create an Entity
-
-An Entity serves as the unique identifier for your data within the system, structured as a dataset consisting of key-value pairs. Before you can begin storing time series data, it's essential to first create an entity and obtain an entityId. This entityId is crucial as it links your data to its specific identity, ensuring accurate organization and retrieval within the database.
-
-Entities in IoTDB.NET can be uniquely identified using one or more key-value pairs (KVPs), where both the key and the value are strings. This flexible approach allows for detailed identification of entities based on various attributes. For example, a simple entity can be identified using a single identifier, such as ("Name", "Sensor_1").
-
-For more complex scenarios requiring nuanced differentiation, entities can be distinguished using multiple identifiers. Consider the case of two sensors:
-
-The first sensor might be identified by a combination of attributes: ("Name", "Sensor_2"), ("Controller", "1"), ("Network", "2").
-A second sensor, despite sharing a similar name, is uniquely identified by a different set of attributes: ("Name", "Sensor_2"), ("Controller", "2"), ("Network", "2").
-This system allows for precise entity management, enabling you to specify and query entities based on a rich, multi-dimensional attribute space, enhancing the robustness and granularity of your IoT data management.
-
-Create an Enity:
+Database initialization is highly recomended for IoTDB application with FK. 
+Initilize parent table first.
 ```csharp
-// Create an Enity. 
-await iotData.Entity.AddEntityAsync((PropertyName.Name, $"Sensor_1}"));
-
+iotData.Tables<Friend>();
+iotData.Tables<Address>();
 ```
 
-The PropertyName class introduces a collection of standard identifiers, aimed at reducing typographical errors during the creation and retrieval of Entities. These standardized identifiers are strongly encouraged to enhance consistency and diminish errors. However, the system is built with versatility in mind, permitting the use of arbitrary strings as property names. This design choice offers developers the freedom to expand the database schema according to their requirements without limitations, while still leveraging the ease and dependability provided by standard identifiers whenever suitable.
-
-### Retrieving an Entity
-To guarantee precise retrieval of entities, it's imperative to use the identifiers specifically established for them. Utilizing these identifiers correctly significantly reduces the possibility of mistakenly retrieving an incorrect entity, thereby safeguarding the integrity and reliability of your data retrieval procedures.
-
-```csharp
-// Retrieving the entity
-
-var entity = await data.Entity.GetEntityAsync((PropertyName.Name, $"Sensor_1"));
-
-// entity data type is (string Id, string Guid). 
-
-```
-
-### Adding and Retrieving Data
-
-```csharp
-// Set data for an entity
-int entityId = entity.Id;
-double value = 23.5; 
-DateTime timestamp = DateTime.Now; // Use specific timestamp or default for current time
-iotData.Set(entityId, value, timestamp, true); // true indicates time-series data
-
-// Asynchronously retrieve data for an entity
-var result = await iotData.GetAsync(entityId); //Get last value
-
-// result is nullable data type (double Value, DateTime Timestamp).
-// In IoTDB.NET, all timestamps are recorded in Universal Time (UTC) to ensure consistency and accuracy across different time zones and systems.
-
-if (result.HasValue)
-{
-    Console.Out.WriteLineAsync($"Value: {result.Value.Value}, Timestamp: {result.Value.Timestamp}");
-}
-```
-
-### Getting Time-Series Data
-
-```csharp
-// Define entity IDs and time range
-List<int> entityIds = new List<int> { 1, 2, 3 }; 
-DateTime from = DateTime.Now.AddDays(-1);
-DateTime to = DateTime.Now;
-
-// Asynchronously retrieve time-series data for multiple entities
-var timeSeriesData = await iotData.GetAsync(entityIds, from, to);
-foreach (var item in timeSeriesData)
-{
-    Console.Out.WriteLineAsync($"Entity ID: {item.Key}");
-    foreach (var data in item.Value)
-    {
-        // The Timestamp property of a TimeSeriesItem is not directly represented as a C# DateTime object. 
-        // To obtain a DateTime representation, you can utilize the .ToDateTime method for UTC time or .ToLocalDateTime for local time 
-        Console.Out.WriteLineAsync($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
-    }
-}
-```
-
-
-### Getting Time-Series Data with Interval
-The interval feature enables the retrieval of data at specified intervals. In cases where data points are missing, they will be filled in through linear interpolation to ensure continuity in the dataset.
-
-```csharp
-// Define entity IDs and time range
-List<int> entityIds = new List<int> { 1, 2, 3 }; 
-DateTime from = DateTime.Now.AddDays(-1);
-DateTime to = DateTime.Now;
-int interval = 1;
-IntervalType itype = IntervalType.Seconds;
-
-// Asynchronously retrieve time-series data for multiple entities
-var timeSeriesData = await iotData.GetAsync(entityIds, from, to, interval, itype);
-foreach (var item in timeSeriesData)
-{
-    Console.Out.WriteLineAsync($"Entity ID: {item.Key}");
-    foreach (var data in item.Value)
-    {
-        Console.Out.WriteLineAsync($"Timestamp: {data.ToLocalDateTime}, Value: {data.Value}");
-    }
-}
-```
-
-### Exception Handling in IoTDB.NET
-IoTDB.NET enforces strict exception handling during its boot-up process. It is imperative to catch and manage these exceptions to ensure smooth operation. For exceptions that occur at runtime, IoTDB.NET provides a mechanism to subscribe to an event notification system that alerts you to these exceptions.
-
-Unhandled exceptions can significantly disrupt high-volume processing systems, potentially slowing them down or, in the worst-case scenario, leading to data loss. It is crucial to diligently manage all exceptions to prevent any unintended consequences. Ensuring comprehensive exception handling will help maintain the integrity and reliability of your system.
-
-Here's how you can subscribe to and handle exceptions:
-
-```csharp
-// Subscribe to the exception event
-iotData.ExceptionOccurred += OnExceptionOccurred;
-
-// Event handler for exceptions
-private static void OnExceptionOccurred(object? sender, ExceptionEventArgs e)
-{
-    // Log or handle the exception as needed
-    Console.Out.WriteLineAsync($"Exception occurred: {e.Message}");
-    // The ExceptionEventArgs includes details about the exception:
-    // - Class: Name of the class where the exception occurred
-    // - Method: Name of the method where the exception occurred
-    // - Type: Full name of the exception type
-    // - Message: Message of the exception
-    // - Timestamp: Time when the exception occurred, in UTC. Convert to local time with .ToLocalDateTime.
-}
-
-```
-
+## Closing or Unloading IoTDB
+Unloading or closing IoTDB is not necessary. The library handles closure and recovery automatically. However, if your program ends or crashes during a data write, any incomplete or unwritten data will be lost.
 
 
 ## Contributing
@@ -336,8 +217,8 @@ This permissive license encourages open and collaborative software development w
 ## Third-Party Licenses and Acknowledgments
 
 This software includes and/or depends on the following third-party software component, which is subject to its own license:
-
+- **LiteDb**:  A .NET NoSQL Document Store database in a single data file. License: For specific license terms, please refer to the [LiteDB github](https://github.com/mbdavid/LiteDB/blob/master/LICENSE).
 - **TeaFile**: TeaFile is used for efficient time series data storage and access. License: For specific license terms, please refer to the [TeaFile web page](http://discretelogics.com/teafiles/#license).
 
-We express our gratitude to the contributors and maintainers of TeaFile for their work.
+We express our gratitude to the contributors and maintainers of LiteDB and TeaFile for their work.
 
