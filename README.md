@@ -1,30 +1,30 @@
 ﻿
 # IoTDBdotNET Library
+## Current Version: 1.0.0-beta
 
 ## Overview
 
 IoTDBdotNET is optimized for C# applications, offering a lightweight alternative to traditional databases. IoTDBdotNET design based LiteDB for tables and TeaFiles for time series. 
 
-## Features
+## Versioning
+Version format of X.Y.Z (Major.Minor.Patch).
 
-- Light weight and fast time-series data storage
-- IoTDatabase preconfigured structure allows for quick and easy use of database
-- Time-series data retrieval with support for interval and linear interpolation
-- Support both tables and time series
-- Thread-safe data handling
+## Goals
+
+- Easy to use
+- Light weight
+- Quick and easy for IoT development and deployment
 
 ## Before You Continue
 
 - This is beta release. 
-- IoTDBdotNET time series data support both numeric and Bson value. However, IoT numeric data can be stored much at 500K entries per second.
-- IoTDBdotNET tables are thread safe isolicated. Each table operate on it own thread to provide fater processing. Table.UpdateQue function allows queuing for background processing.
 
 ## Installation
 
 To use the IoTDBdotNET library in your project, follow these steps:
 
 1. .NET environment compatible with C# .NET 7
-2. Install IoTDBdotNET NuGet Package.
+2. Install IoTDBdotNET NuGet Package (not available until version 1.0.0).
 
 ## Quick Start
 
@@ -36,13 +36,162 @@ using IoTDB.NET;
 
 // Specify database name and path
 var dbName = "MyIoTDatabase";
-var dbPath = "path/to/database/directory";
-bool createPathIfNotExist = true;
+var dbPath = @"c:\temp";
 
 // Create an instance of IoTData
-var iotData = new IoTDatabase(dbName, dbPath, createPathIfNotExist);
+var iotData = new IoTDatabase(dbName, dbPath);
 ```
+This create an empty database in your c:\temp directory
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/51d59c34-2c5f-4728-aa95-72769172b832)
 
+### Using IoTDB Table
+#### 1. Create a public class for your data structure
+'''csharp
+public class Friend
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+}
+```
+Above class is the model for your table.
+All table must have an Id property. The Id property must be of type: Guid, int, or double
+
+#### 2. Access the table
+```csharp
+static void Main(string[] args)
+{
+    // Specify database name and path
+    var dbName = "MyIoTDatabase";
+    var dbPath = @"c:\temp";
+
+    // Create an instance of IoTData
+    var iotData = new IoTDatabase(dbName, dbPath);
+
+    // Create a table with class name as table name
+    var friendTbl = iotData.Tables<Friend>();
+}
+```
+This create an empty table in the Tables folder.
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/b614ae68-d48d-4ab7-ab6d-936b70d22b06)
+
+What if you also want to create a table called BestFriend?
+Create another derived class from friend.
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/3a3f650f-fd27-4328-98c1-0bd9c4cf7b0e)
+
+#### 3. Find and create new record
+```csharp
+//check if database has friend name Bob
+var friend = friendTbl.FindOne(x=>x.Name.Equals("bob", StringComparison.OrdinalIgnoreCase));
+if (friend == null )
+{
+    //create new friend
+    friend = new Friend() { Name = "Bob" };
+    //insert friend to database
+    var id = friendTbl.Insert(friend);
+    if (id.IsNull)
+    {
+        Console.WriteLine("Failed to insert.");
+        return;
+    } 
+}
+
+//display record
+Console.WriteLine($"Success: Id [{friend.Id}] Name [{friend.Name}]");
+```
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/0f78a0b8-4c37-4fc4-9aa8-67dc73e9fb12)
+
+
+#### 4. Foreign Key
+```csharp
+public class Address
+{
+    public Guid Id { get; set; }
+    [TableForeignKey(typeof(Friend), TableConstraint.Cascading, RelationshipOneTo.One, "Each friend only have one address." )]
+    public Guid FriendId { get; set; }
+    public string Street { get; set; }
+    public string City { get; set; }
+    public string State { get; set; }
+    public string ZipCode { get; set; }
+}
+```
+The address class reference the Friend table. 
+IoTDB support FK constraint that allows you to cascade deletion and other actions. You can also set One to One or One to Many relationship.
+
+```csharp
+// Address table
+var addressTbl = iotData.Tables<Address>();
+
+//check if database has friend name Bob
+var address = addressTbl.FindOne(x => x.FriendId == friend.Id);
+
+if (address == null)
+{
+    //create new friend
+    address = new Address() { 
+        FriendId = friend.Id,
+        Street = "123 Main St.",
+        City = "Friend Town",
+        State = "TX",
+        ZipCode = "75001-0001"
+    };
+    try
+    {
+        //insert friend to database
+        var id = addressTbl.Insert(address);
+        if (id.IsNull)
+        {
+            Console.WriteLine("Failed to insert.");
+            return;
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error insert address: [{ex.Message}]");
+        return;
+    }
+}
+
+//display record
+Console.WriteLine($"Success: Id [{address.Id}] FriendId [{friend.Id}] Street [{address.Street}]");
+```
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/c138ecb6-4afd-477f-bdd5-ac1e306e8eff)
+
+#### 5. Foreign Key Constraint Error
+IoTDB throw error for all contraint errors.
+```csharp
+//This throw exception becuase of One to One relationship. Only one address allow for each FK reference.
+//[TableForeignKey(typeof(Friend), TableConstraint.Cascading, RelationshipOneTo.One, "Each friend only have one address." )]
+//public Guid FriendId { get; set; }
+var address2 = new Address()
+{
+    FriendId = friend.Id,
+    Street = "789 ABC Street",
+    City = "Friend Town",
+    State = "TX",
+    ZipCode = "75001-0001"
+};
+try
+{
+    //insert friend to database
+    var id = addressTbl.Insert(address);
+    if (id.IsNull)
+    {
+        Console.WriteLine("Failed to insert.");
+        return;
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error insert address: [{ex.Message}]");
+    return;
+}
+```
+![image](https://github.com/d42y/IoTDB.NET/assets/29101692/a68cb6a1-0d9e-415b-9799-083a0047c0f4)
+
+
+### Initialize Database Tables
+Database initialization is REQUIRED if you have foreign key.
+Table is nto create until you first use it. If you
 ### Create an Entity
 
 An Entity serves as the unique identifier for your data within the system, structured as a dataset consisting of key-value pairs. Before you can begin storing time series data, it's essential to first create an entity and obtain an entityId. This entityId is crucial as it links your data to its specific identity, ensuring accurate organization and retrieval within the database.
