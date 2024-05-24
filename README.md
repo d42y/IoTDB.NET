@@ -222,8 +222,8 @@ This permissive license encourages open and collaborative software development w
 ## Third-Party Licenses and Acknowledgments
 
 This software includes and/or depends on the following third-party software component, which is subject to its own license:
-- **LiteDb**:  A .NET NoSQL Document Store database in a single data file. License: For specific license terms, please refer to the [LiteDB github](https://github.com/mbdavid/LiteDB/blob/master/LICENSE).
-- **TeaFile**: TeaFile is used for efficient time series data storage and access. License: For specific license terms, please refer to the [TeaFile web page](http://discretelogics.com/teafiles/#license).
+- **LiteDb**:  A .NET NoSQL Document Store database in a single data file. License MIT: For specific license terms, please refer to the [LiteDB github](https://github.com/mbdavid/LiteDB/blob/master/LICENSE).
+- **TeaFile**: TeaFile is used for efficient time series data storage and access. License MIT: For specific license terms, please refer to the [TeaFile github](https://github.com/discretelogics/TeaFiles.Net-Time-Series-Storage-in-Files/blob/master/LICENSE).
 
 We express our gratitude to the contributors and maintainers of LiteDB and TeaFile for their work.
 
