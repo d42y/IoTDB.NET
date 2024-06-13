@@ -16,12 +16,13 @@ IoTDBdotNET is optimized for C# applications, offering a lightweight alternative
 ## Goals
 
 - Easy to use
-- Light weight
+- Lightweight
+- Encryption
 - Quick and easy for IoT development and deployment
 
 ## Before You Continue
 
-- This is beta release. 
+- This is a beta release. 
 
 ## Installation
 
@@ -33,7 +34,7 @@ To use the IoTDBdotNET library in your project, follow these steps:
 ## Quick Start
 
 ### Initializing the Database
-IoTDB.NET use flat files to store the data. Make sure your application has write permission to the database path.
+IoTDB.NET stores data in flat files. Make sure your application has write permission to the database path.
 
 ```csharp
 using IoTDB.NET;
@@ -43,9 +44,9 @@ var dbName = "MyIoTDatabase";
 var dbPath = @"c:\temp";
 
 // Create an instance of IoTData
-var iotData = new IoTDatabase(dbName, dbPath);
+var iotData = new IoTDatabase(dbName, dbPath, "encryption password");
 ```
-This create an empty database in your c:\temp directory
+This creates an empty database in your c:\temp directory
 
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/51d59c34-2c5f-4728-aa95-72769172b832)
 
@@ -58,8 +59,8 @@ public class Friend
     public string Name { get; set; }
 }
 ```
-Above class is the model for your table.
-All table must have an Id property. The Id property must be of type: Guid, int, or double
+The above class is the model for your table.
+All tables must have an ID property. The Id property must be of type: Guid, int, or double
 
 #### 2. Access the table
 ```csharp
@@ -72,11 +73,11 @@ static void Main(string[] args)
     // Create an instance of IoTData
     var iotData = new IoTDatabase(dbName, dbPath);
 
-    // Create a table with class name as table name
+    // Create a table with the class name as the table name
     var friendTbl = iotData.Tables<Friend>();
 }
 ```
-This create an empty table in the Tables folder.
+This creates an empty table in the Tables folder.
 
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/b614ae68-d48d-4ab7-ab6d-936b70d22b06)
 
@@ -85,13 +86,13 @@ Create another derived class from friend.
 
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/3a3f650f-fd27-4328-98c1-0bd9c4cf7b0e)
 
-#### 3. Find and create new record
+#### 3. Find and create a new record
 ```csharp
-//check if database has friend name Bob
+//check if the database has a friend name Bob
 var friend = friendTbl.FindOne(x=>x.Name.Equals("bob", StringComparison.OrdinalIgnoreCase));
 if (friend == null )
 {
-    //create new friend
+    //create a new friend
     friend = new Friend() { Name = "Bob" };
     //insert friend to database
     var id = friendTbl.Insert(friend);
@@ -122,19 +123,19 @@ public class Address
     public string ZipCode { get; set; }
 }
 ```
-The address class reference the Friend table. 
-IoTDB support FK constraint that allows you to cascade deletion and other actions. You can also set One to One or One to Many relationship.
+The address class references the Friend table. 
+IoTDB supports FK constraints, which allow you to cascade deletion and other actions. You can also set a one-to-one or one-to-many relationship.
 
 ```csharp
 // Address table
 var addressTbl = iotData.Tables<Address>();
 
-//check if database has friend name Bob
+//check if the database has a friend named Bob
 var address = addressTbl.FindOne(x => x.FriendId == friend.Id);
 
 if (address == null)
 {
-    //create new friend
+    //create a new friend
     address = new Address() { 
         FriendId = friend.Id,
         Street = "123 Main St.",
@@ -166,10 +167,10 @@ Console.WriteLine($"Success: Id [{address.Id}] FriendId [{friend.Id}] Street [{a
 ![image](https://github.com/d42y/IoTDB.NET/assets/29101692/c138ecb6-4afd-477f-bdd5-ac1e306e8eff)
 
 #### 5. Foreign Key Constraint Error
-IoTDB throw error for all contraint errors.
+IoTDB throws an error for all contraint errors.
 ```csharp
-//This throw exception becuase of One to One relationship. Only one address allow for each FK reference.
-//[TableForeignKey(typeof(Friend), TableConstraint.Cascading, RelationshipOneTo.One, "Each friend only have one address." )]
+//This throws an exception because of the one-to-one relationship. Only one address is allowed for each FK reference.
+//[TableForeignKey(typeof(Friend), TableConstraint.Cascading, RelationshipOneTo.One, "Each friend only has one address." )]
 //public Guid FriendId { get; set; }
 var address2 = new Address()
 {
@@ -199,7 +200,7 @@ catch (Exception ex)
 
 
 ### Initialize Database Tables
-Database initialization is highly recomended for IoTDB application with FK. 
+Database initialization is highly recommended for IoTDB applications with FK. 
 Initilize parent table first.
 ```csharp
 iotData.Tables<Friend>();
@@ -207,19 +208,19 @@ iotData.Tables<Address>();
 ```
 
 ## Closing or Unloading IoTDB
-Unloading or closing IoTDB is not necessary. The library handles closure and recovery automatically. However, if your program ends or crashes during a data write, any incomplete or unwritten data will be lost.
+Unloading or closing IoTDB is not necessary. The library handles closure and recovery automatically. However, incomplete or unwritten data will be lost if your program ends or crashes during a data write.
 
 
 ## Contributing
 
-Creating a robust and user-friendly database equivalent library requires significant effort and contributions from the public. However, during the current initial beta testing phase, I do not plan to accept outside contributions yet.
+Creating a robust and user-friendly database equivalent library requires significant effort and contributions from the public. However, I do not plan to accept outside contributions during the initial beta testing phase.
 
 
 ## License
 This library is licensed under the MIT License. This means you are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, provided you include the following conditions in your distribution:
 
-1. A copy of the original MIT License and copyright notice must be included with the software.
-2. The software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+1. The software must include A copy of the original MIT License and copyright notice.
+2. The software is provided "as is" without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
 
 
 This permissive license encourages open and collaborative software development while providing protection for the original authors. For more details, please refer to the full MIT License text.
@@ -230,5 +231,5 @@ This software includes and/or depends on the following third-party software comp
 - **LiteDb**:  A .NET NoSQL Document Store database in a single data file. License MIT: For specific license terms, please refer to the [LiteDB github](https://github.com/mbdavid/LiteDB/blob/master/LICENSE).
 - **TeaFile**: TeaFile is used for efficient time series data storage and access. License MIT: For specific license terms, please refer to the [TeaFile github](https://github.com/discretelogics/TeaFiles.Net-Time-Series-Storage-in-Files/blob/master/LICENSE).
 
-We express our gratitude to the contributors and maintainers of LiteDB and TeaFile for their work.
+We thank the contributors and maintainers of LiteDB and TeaFile for their work.
 
