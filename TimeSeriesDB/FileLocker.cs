@@ -28,8 +28,7 @@ namespace IoTDBdotNET.TimeSeriesDB
         {
             FileMode = mode;
             FilePath = path;
-            _password = "";
-            if (!string.IsNullOrEmpty(password) ) _password = password;
+            _password = password ?? "";
         }
 
         public IItemCollection<T>? Read

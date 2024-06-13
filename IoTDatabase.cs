@@ -24,8 +24,8 @@ namespace IoTDBdotNET
 
         public IoTDatabase(string dbName, string dbPath, string? password)
         {
-            _password = "";
-            if (!string.IsNullOrEmpty(password)) _password = password;
+            _password = password ?? "";
+          
             // Directory checks and creation
             InitializeDirectories(dbName, dbPath);
             if (!Directory.Exists(_dbPath)) throw new DirectoryNotFoundException($"Unable to create database directory. {_dbPath}");
@@ -80,7 +80,7 @@ namespace IoTDBdotNET
             string name = containerName;
             if (!_files.ContainsKey(name))
             {
-                _files[name] = new FileCollection(_flPath, name);
+                _files[name] = new FileCollection(_flPath, name, _password);
                 _files[name].ExceptionOccurred += OnExceptionOccurred;
             }
 

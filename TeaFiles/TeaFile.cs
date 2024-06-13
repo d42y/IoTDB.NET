@@ -2,6 +2,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace IoTDBdotNET
 {
@@ -14,6 +16,69 @@ namespace IoTDBdotNET
     /// </remarks>
     public sealed class TeaFile : IDisposable, IItemReader
     {
+        #region Encryption
+        private const int KeySize = 32; // 256 bits for AES-256
+        private const int IvSize = 16; // 128 bits for AES
+
+        private byte[] encryptionKey;
+        private byte[] encryptionIV;
+
+        private void GenerateEncryptionKeyAndIV(string password)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var key = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                encryptionKey = new byte[KeySize];
+                Array.Copy(key, encryptionKey, KeySize);
+
+                var iv = new byte[IvSize];
+                Array.Copy(key, KeySize, iv, 0, IvSize);
+                encryptionIV = iv;
+            }
+        }
+
+        private Aes CreateAes()
+        {
+            var aes = Aes.Create();
+            aes.Key = encryptionKey;
+            aes.IV = encryptionIV;
+            return aes;
+        }
+
+        private CryptoStream CreateCryptoStream(Stream stream, CryptoStreamMode mode, bool forWrite)
+        {
+            var aes = CreateAes();
+            return new CryptoStream(stream, forWrite ? aes.CreateEncryptor() : aes.CreateDecryptor(), mode);
+        }
+
+        private bool IsEncrypted(Stream stream)
+        {
+            // Check the first few bytes or a specific marker in the file to determine if it's encrypted.
+            // This example assumes the first byte is a flag indicating encryption.
+            stream.Seek(0, SeekOrigin.Begin);
+            int encryptionFlag = stream.ReadByte();
+            stream.Seek(0, SeekOrigin.Begin);
+            return encryptionFlag == 1;
+        }
+
+        private void EncryptFile(Stream inputFileStream, Stream outputFileStream)
+        {
+            using (var cryptoStream = CreateCryptoStream(outputFileStream, CryptoStreamMode.Write, true))
+            {
+                inputFileStream.CopyTo(cryptoStream);
+            }
+        }
+
+        private void DecryptFile(Stream inputFileStream, Stream outputFileStream)
+        {
+            using (var cryptoStream = CreateCryptoStream(inputFileStream, CryptoStreamMode.Read, false))
+            {
+                cryptoStream.CopyTo(outputFileStream);
+            }
+        }
+        #endregion
+
+
         #region Construction
 
         /// <summary>
@@ -28,12 +93,41 @@ namespace IoTDBdotNET
         /// </summary>
         /// <exception cref="ArgumentNullException"><paramref name="path"/> is null. </exception>
         /// <param name="path">The path of the file. </param>
+        /// <param name="password">The password for decryption (optional).</param>
         /// <returns>An instance of TeaFile. </returns>
-        public static TeaFile OpenRead(string path)
+        public static TeaFile OpenRead(string path, string? password = null)
         {
             if (path == null) throw new ArgumentNullException("path");
             Stream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return OpenRead(stream, true);
+
+            var tf = new TeaFile();
+            try
+            {
+                if (tf.IsEncrypted(stream))
+                {
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("The file is encrypted but no password was provided.");
+                    } else
+                    {
+                        tf.GenerateEncryptionKeyAndIV(password);
+                        if (tf.IsEncrypted(stream))
+                        {
+                            var decryptedStream = new MemoryStream();
+                            tf.DecryptFile(stream, decryptedStream);
+                            decryptedStream.Seek(0, SeekOrigin.Begin);
+                            stream = decryptedStream;
+                        }
+                    }
+                }
+
+                return OpenRead(stream, true);
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
         }
 
         /// <summary>

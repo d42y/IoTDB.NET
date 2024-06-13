@@ -31,7 +31,7 @@ namespace IoTDBdotNET
             _dbPath = dbPath;
             if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
             _connectionString = new ConnectionString();
-            if (!string.IsNullOrEmpty(password)) _connectionString.Password = password;
+            _connectionString.Password = password??"";
             _connectionString.Filename = Path.Combine(dbPath, $"{_dbName}.db");
            
             _liteDatabase = new LiteDatabase(_connectionString);

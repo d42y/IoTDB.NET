@@ -6,6 +6,7 @@ using System.ComponentModel.Design;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,12 +14,94 @@ namespace IoTDBdotNET.FileDB
 {
     internal class FileCollection : BaseDatabase, IFileCollection
     {
+        private const int KeySize = 32; // 256 bits for AES-256
+        private const int IvSize = 16; // 128 bits for AES
+        private readonly byte[] _encryptionKey;
+        private readonly byte[] _encryptionIV;
+
         private readonly string _filesDirectory;
-        public FileCollection(string dbPath, string containerName, string password = "", double backgroundTaskFromMilliseconds = 100) : base(dbPath, containerName, password, backgroundTaskFromMilliseconds)
+        private readonly string _password;
+        private readonly TemporaryFileStorage _temporaryFileStorage;
+
+        public FileCollection(string dbPath, string containerName, string? password, double backgroundTaskFromMilliseconds = 100) : base(dbPath, containerName, password, backgroundTaskFromMilliseconds)
         {
+            _password = password ?? "";
+
             _filesDirectory = Path.Combine(DbPath, "Files");
             Directory.CreateDirectory(_filesDirectory);
+            _temporaryFileStorage = new TemporaryFileStorage(Path.Combine(_filesDirectory, "Temp"));
+
+            if (!string.IsNullOrEmpty(_password))
+            {
+                // Generate the encryption key and IV from the password
+                using (var sha256 = SHA256.Create())
+                {
+                    var key = sha256.ComputeHash(Encoding.UTF8.GetBytes(_password));
+                    _encryptionKey = new byte[KeySize];
+                    Array.Copy(key, _encryptionKey, KeySize);
+
+                    var iv = new byte[IvSize];
+                    Array.Copy(key, KeySize, iv, 0, IvSize);
+                    _encryptionIV = iv;
+                }
+            }
         }
+
+        #region Encryption
+        private Aes CreateAes()
+        {
+            var aes = Aes.Create();
+            aes.Key = _encryptionKey;
+            aes.IV = _encryptionIV;
+            return aes;
+        }
+
+        
+
+        private CryptoStream CreateCryptoStream(Stream stream, CryptoStreamMode mode, bool forWrite)
+        {
+            var aes = CreateAes();
+            return new CryptoStream(stream, forWrite ? aes.CreateEncryptor() : aes.CreateDecryptor(), mode);
+        }
+
+        private void EncryptFile(Stream inputFileStream, Stream outputFileStream)
+        {
+            if (string.IsNullOrEmpty(_password))
+            {
+                inputFileStream.CopyTo(outputFileStream);
+            }
+            else
+            {
+                using (var cryptoStream = CreateCryptoStream(outputFileStream, CryptoStreamMode.Write, true))
+                {
+                    inputFileStream.CopyTo(cryptoStream);
+                }
+            }
+        }
+
+        private void DecryptFile(Stream inputFileStream, Stream outputFileStream)
+        {
+            if (string.IsNullOrEmpty(_password))
+            {
+                inputFileStream.CopyTo(outputFileStream);
+            }
+            else
+            {
+                using (var cryptoStream = CreateCryptoStream(inputFileStream, CryptoStreamMode.Read, false))
+                {
+                    cryptoStream.CopyTo(outputFileStream);
+                }
+            }
+        }
+
+        private bool IsFileEncrypted(Stream stream)
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            int encryptionFlag = stream.ReadByte();
+            stream.Seek(0, SeekOrigin.Begin);
+            return encryptionFlag == 1;
+        }
+        #endregion
 
         #region Add
         public Guid AddNewFile(string user, string filePath)
@@ -142,16 +225,19 @@ namespace IoTDBdotNET.FileDB
             var fileName = $"{newVersion}.{fileMetadata.FileExtension}";
             
             var newFilePath = Path.Combine(fileDirectory, fileName);
-            if (inputStream != null)
+            using (var fileStream = File.Create(newFilePath))
             {
-                using (var fileStream = File.Create(newFilePath))
+                if (inputStream != null)
                 {
-                    inputStream.CopyTo(fileStream);
+                    EncryptFile(inputStream, fileStream);
                 }
-            }
-            else if (filePath != null)
-            {
-                File.Copy(filePath, newFilePath, true);
+                else if (filePath != null)
+                {
+                    using (var originalFileStream = File.OpenRead(filePath))
+                    {
+                        EncryptFile(originalFileStream, fileStream);
+                    }
+                }
             }
 
             fileMetadata.CurrentVersion = newVersion;
@@ -216,32 +302,56 @@ namespace IoTDBdotNET.FileDB
             if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
 
             var checkoutCollection = Database.GetCollection<FileCheckoutRecord>("checkoutRecords");
-            // Ensure only one checkout at a time
             var existingCheckout = checkoutCollection.FindOne(x => x.FileId == fileId && x.Status == FileCheckoutStatus.Checkout);
             if (existingCheckout != null)
             {
-                //throw error if checked out by another use. 
                 if (!existingCheckout.Username.Equals(user, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException("File is already checked out.");
                 }
-                //at this point, it  is the same checked out user. Check if checked out version is the same.
                 else if ((version != null && version > 0) && existingCheckout.CheckoutVersion != version)
                 {
                     throw new InvalidOperationException($"User [{user}] checked out file version [{existingCheckout.CheckoutVersion}] on [{existingCheckout.Timestamp}].");
                 }
-
             }
 
-            //ok to send file to user
             var fileVersion = version ?? fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
             var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
+            var encryptedFilePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
 
-            if (!File.Exists(filePath))
+            if (!File.Exists(encryptedFilePath))
             {
                 throw new FileNotFoundException("Requested file version does not exist.");
+            }
+
+            // Check if file is encrypted
+            using (var fileStream = File.OpenRead(encryptedFilePath))
+            {
+                if (IsFileEncrypted(fileStream))
+                {
+                    if (string.IsNullOrEmpty(_password))
+                    {
+                        throw new UnauthorizedAccessException("This file is encrypted. Please provide a password.");
+                    }
+
+                    // Decrypt the file and store it temporarily
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        DecryptFile(fileStream, memoryStream);
+                        memoryStream.Seek(0, SeekOrigin.Begin);
+                        filePath = _temporaryFileStorage.CreateTemporaryFile(memoryStream, TimeSpan.FromMinutes(10));
+                    }
+                }
+                else
+                {
+                    //if (!string.IsNullOrEmpty(_password))
+                    //{
+                    //    throw new UnauthorizedAccessException("This file is not encrypted. Please open it without a password.");
+                    //}
+
+                    filePath = encryptedFilePath;
+                }
             }
 
             if (existingCheckout == null)
@@ -260,6 +370,7 @@ namespace IoTDBdotNET.FileDB
 
             return fileMetadata;
         }
+
         public FileMetadata CheckOutFileToStream(string user, Guid fileId, Stream outputStream, int? version = null)
         {
 
@@ -510,14 +621,42 @@ namespace IoTDBdotNET.FileDB
         #region G
         public FileMetadata GetFilePath(string user, Guid fileId, out string filePath)
         {
-
             var fileMetadata = GetFileMetadata(fileId);
             if (fileMetadata == null) throw new FileNotFoundException("File ID not found in database.");
 
             var fileVersion = fileMetadata.CurrentVersion;
             var fileDirectory = Path.Combine(_filesDirectory, fileId.ToString());
             var ext = fileMetadata.FileExtension ?? Path.GetExtension(fileMetadata.FileName);
-            filePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
+            var encryptedFilePath = Path.Combine(fileDirectory, $"{fileVersion}.{ext}");
+
+            // Check if file is encrypted
+            using (var fileStream = File.OpenRead(encryptedFilePath))
+            {
+                if (IsFileEncrypted(fileStream))
+                {
+                    if (string.IsNullOrEmpty(_password))
+                    {
+                        throw new UnauthorizedAccessException("This file is encrypted. Please provide a password.");
+                    }
+
+                    // Decrypt the file and store it temporarily
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        DecryptFile(fileStream, memoryStream);
+                        memoryStream.Seek(0, SeekOrigin.Begin);
+                        filePath = _temporaryFileStorage.CreateTemporaryFile(memoryStream, TimeSpan.FromMinutes(10));
+                    }
+                }
+                else
+                {
+                    //if (!string.IsNullOrEmpty(_password))
+                    //{
+                    //    throw new UnauthorizedAccessException("This file is not encrypted. Please open it without a password.");
+                    //}
+
+                    filePath = encryptedFilePath;
+                }
+            }
 
             LogFileAccess(user, fileId, FileOperation.Get); // Assuming FileOperation enum includes a Get operation
 
@@ -532,12 +671,11 @@ namespace IoTDBdotNET.FileDB
             return fileMetadata;
         }
 
-
         public FileMetadata GetFileToStream(string user, Guid fileId, Stream outputStream)
         {
-            var fileMetadata = GetFilePath(user, fileId, out string filePath);
+            var fileMetadata = GetFilePath(user, fileId, out string tempFilePath);
 
-            using (var fileStream = File.OpenRead(filePath))
+            using (var fileStream = File.OpenRead(tempFilePath))
             {
                 fileStream.CopyTo(outputStream);
             }
