@@ -11,8 +11,7 @@ IoTDBdotNET is optimized for C# applications, offering a lightweight alternative
 - Version format of X.Y.Z (Major.Minor.Patch).
 - X.Y.Z-beta (version under beta test).
 - X.Y.Z-rc.1 (version under release candidate 1).
-- X.Y.Z-rc.2 (version under release candidate 2).
-- NuGet package release after rc 2.
+- NuGet package release after completion of rc release.
 
 ## Goals
 
