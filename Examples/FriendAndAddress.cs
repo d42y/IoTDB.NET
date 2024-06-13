@@ -11,7 +11,7 @@ namespace ConsoleApp
             var dbPath = @"c:\temp";
 
             // Create an instance of IoTData
-            var iotData = new IoTDatabase(dbName, dbPath);
+            var iotData = new IoTDatabase(dbName, dbPath, "encryption password");
 
             // Create a table with class name as table name
             var friendTbl = iotData.Tables<Friend>();

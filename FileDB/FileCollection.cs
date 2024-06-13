@@ -14,7 +14,7 @@ namespace IoTDBdotNET.FileDB
     internal class FileCollection : BaseDatabase, IFileCollection
     {
         private readonly string _filesDirectory;
-        public FileCollection(string dbPath, string containerName, double backgroundTaskFromMilliseconds = 100) : base(dbPath, containerName, backgroundTaskFromMilliseconds)
+        public FileCollection(string dbPath, string containerName, string password = "", double backgroundTaskFromMilliseconds = 100) : base(dbPath, containerName, password, backgroundTaskFromMilliseconds)
         {
             _filesDirectory = Path.Combine(DbPath, "Files");
             Directory.CreateDirectory(_filesDirectory);

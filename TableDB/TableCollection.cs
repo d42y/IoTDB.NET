@@ -37,7 +37,7 @@ namespace IoTDBdotNET
         /// <param name="iotDb"></param>
         /// <param name="dbPath"></param>
         /// <param name="tblName"></param>
-        public TableCollection(IoTDatabase iotDb, string tblName = "") : base(iotDb.TableDbPath, string.IsNullOrEmpty(tblName)?typeof(T).Name:tblName)
+        public TableCollection(IoTDatabase iotDb, string tblName = "") : base(iotDb.TableDbPath, string.IsNullOrEmpty(tblName)?typeof(T).Name:tblName, iotDb._password)
         {
             PreCheck();
             SetGlobalIgnore<T>();

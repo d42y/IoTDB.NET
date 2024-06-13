@@ -34,12 +34,12 @@ namespace IoTDBdotNET
         /// </summary>
         /// <param name="fileName">The name of the file to open memory mapped.</param>
         /// <returns></returns>
-        public static RawMemoryMapping<T> OpenRead(string fileName)
+        public static RawMemoryMapping<T> OpenRead(string fileName, string? password)
         {
             if (fileName == null) throw new ArgumentNullException("fileName");
 
             var mapping = new RawMemoryMapping<T>();
-            mapping.teaFile = TeaFile<T>.OpenRead(fileName);
+            mapping.teaFile = TeaFile<T>.OpenRead(fileName, password);
 
             try
             {

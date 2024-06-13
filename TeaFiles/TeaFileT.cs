@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace IoTDBdotNET
@@ -13,6 +14,52 @@ namespace IoTDBdotNET
     ///<typeparam name="T">The item type.</typeparam>
     internal sealed class TeaFile<T> : IDisposable where T : struct
     {
+        #region Encryption
+        private const int KeySize = 32; // 256 bits for AES-256
+        private const int IvSize = 16; // 128 bits for AES
+
+        private byte[] encryptionKey;
+        private byte[] encryptionIV;
+
+        private void GenerateEncryptionKeyAndIV(string password)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var key = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                encryptionKey = new byte[KeySize];
+                Array.Copy(key, encryptionKey, KeySize);
+
+                var iv = new byte[IvSize];
+                Array.Copy(key, KeySize, iv, 0, IvSize);
+                encryptionIV = iv;
+            }
+        }
+
+        private Aes CreateAes()
+        {
+            var aes = Aes.Create();
+            aes.Key = encryptionKey;
+            aes.IV = encryptionIV;
+            return aes;
+        }
+
+        private CryptoStream CreateCryptoStream(Stream stream, CryptoStreamMode mode, bool forWrite)
+        {
+            var aes = CreateAes();
+            return new CryptoStream(stream, forWrite ? aes.CreateEncryptor() : aes.CreateDecryptor(), mode);
+        }
+
+        private bool IsEncrypted(Stream stream)
+        {
+            // Check the first few bytes or a specific marker in the file to determine if it's encrypted.
+            // This example assumes the first byte is a flag indicating encryption.
+            stream.Seek(0, SeekOrigin.Begin);
+            int encryptionFlag = stream.ReadByte();
+            stream.Seek(0, SeekOrigin.Begin);
+            return encryptionFlag == 1;
+        }
+        #endregion
+
         #region Construction
 
         TeaFile()
@@ -57,13 +104,27 @@ namespace IoTDBdotNET
         /// }
         /// </code>		 
         /// </example>
-        public static TeaFile<T> Create(string path, string contentDescription = null, NameValueCollection nameValues = null, bool includeItemDescription = true)
+        public static TeaFile<T> Create(string path, string? password, string contentDescription = null, NameValueCollection nameValues = null, bool includeItemDescription = true)
         {
             if (path == null) throw new ArgumentNullException("path");
             Stream stream = new FileStream(path, FileMode.CreateNew);
             try
             {
-                return Create(stream, true, contentDescription, nameValues, includeItemDescription);
+                var teaFile = new TeaFile<T>();
+                if (!string.IsNullOrEmpty(password))
+                {
+                    teaFile.GenerateEncryptionKeyAndIV(password);
+                    using (var cryptoStream = teaFile.CreateCryptoStream(stream, CryptoStreamMode.Write, true))
+                    {
+                        stream.WriteByte(1); // Write encryption flag
+                        return Create(cryptoStream, true, contentDescription, nameValues, includeItemDescription);
+                    }
+                }
+                else
+                {
+                    stream.WriteByte(0); // Write non-encryption flag
+                    return Create(stream, true, contentDescription, nameValues, includeItemDescription);
+                }
             }
             catch
             {
@@ -140,11 +201,39 @@ namespace IoTDBdotNET
         /// <param name="elementsToValidate">Elements of the ItemDescription of <typeparamref name="T"/> compared against hose inside thefile.
         /// <see cref="ItemDescriptionElements"/> for details. </param>
         /// <returns>The file, open for reading. </returns>
-        public static TeaFile<T> OpenRead(string path, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
+        public static TeaFile<T> OpenRead(string path, string? password, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
         {
-            if (path == null) throw new ArgumentNullException("path");
+            if (path == null) throw new ArgumentNullException(nameof(path));
             Stream stream = new FileStream(path, FileMode.Open);
-            return OpenRead(stream, true, elementsToValidate);
+            var teaFile = new TeaFile<T>();
+            try
+            {
+                if (teaFile.IsEncrypted(stream))
+                {
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is encrypted. Please provide a password.");
+                    }
+                    teaFile.GenerateEncryptionKeyAndIV(password);
+                    using (var cryptoStream = teaFile.CreateCryptoStream(stream, CryptoStreamMode.Read, false))
+                    {
+                        return OpenRead(cryptoStream, true, elementsToValidate);
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is not encrypted. Please open it without a password.");
+                    }
+                    return OpenRead(stream, true, elementsToValidate);
+                }
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
         }
 
         /// <summary>Opens a TeaFile for read. </summary>
@@ -194,13 +283,33 @@ namespace IoTDBdotNET
         /// <see cref="ItemDescriptionElements"/> for details. </param>
         /// <returns>A TeaFile in write mode. </returns>
         /// <remarks><see cref="OpenRead(string,TeaTime.ItemDescriptionElements)"/> about the <paramref name="elementsToValidate"/> parameter.</remarks>
-        public static TeaFile<T> OpenWrite(string path, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
+        public static TeaFile<T> OpenWrite(string path, string? password, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
         {
             if (path == null) throw new ArgumentNullException("path");
             Stream stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
             try
             {
-                return OpenWrite(stream, true, elementsToValidate);
+                var teaFile = new TeaFile<T>();
+                if (teaFile.IsEncrypted(stream))
+                {
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is encrypted. Please provide a password.");
+                    }
+                    teaFile.GenerateEncryptionKeyAndIV(password);
+                    using (var cryptoStream = teaFile.CreateCryptoStream(stream, CryptoStreamMode.Write, true))
+                    {
+                        return OpenWrite(cryptoStream, true, elementsToValidate);
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is not encrypted. Please open it without a password.");
+                    }
+                    return OpenWrite(stream, true, elementsToValidate);
+                }
             }
             catch
             {
@@ -250,28 +359,44 @@ namespace IoTDBdotNET
         /// <see cref="ItemDescriptionElements"/> for details. </param>
         /// <returns>. </returns>
         /// <exception cref="ArgumentException">If path is null.</exception>
-        public static TeaFile<T> Append(string path, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
+        public static TeaFile<T> Append(string path, string? password, ItemDescriptionElements elementsToValidate = ItemDescriptionElements.All)
         {
-            if (path == null) throw new ArgumentNullException("path");
-
+            if (path == null) throw new ArgumentNullException(nameof(path));
             Stream headerStream = null;
             Stream stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
             try
             {
                 headerStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                return Append(stream, true, headerStream, elementsToValidate);
+                var teaFile = new TeaFile<T>();
+                if (teaFile.IsEncrypted(stream))
+                {
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is encrypted. Please provide a password.");
+                    }
+                    teaFile.GenerateEncryptionKeyAndIV(password);
+                    using (var cryptoStream = teaFile.CreateCryptoStream(stream, CryptoStreamMode.Write, true))
+                    {
+                        return Append(cryptoStream, true, headerStream, elementsToValidate);
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        throw new UnauthorizedAccessException("This file is not encrypted. Please open it without a password.");
+                    }
+                    return Append(stream, true, headerStream, elementsToValidate);
+                }
             }
-            catch (Exception)
+            catch
             {
                 stream.Dispose();
                 throw;
             }
             finally
             {
-                if (headerStream != null)
-                {
-                    headerStream.Dispose();
-                }
+                headerStream?.Dispose();
             }
         }
 
@@ -488,12 +613,12 @@ namespace IoTDBdotNET
         /// <summary>Opens a memory mapping of the file using managed memory mapping. </summary>
         /// <param name="path">path of the file. </param>
         /// <returns>An instance of <see cref="ManagedMemoryMapping{T}"/> providing access to the items in the file. </returns>
-        public static ManagedMemoryMapping<T> OpenMemoryMapping(string path)
+        public static ManagedMemoryMapping<T> OpenMemoryMapping(string path, string? password)
         {
             long itemAreaStart;
             long itemAreaEnd;
             int itemSize;
-            using (var tf = OpenRead(path))
+            using (var tf = OpenRead(path, password))
             {
                 itemAreaStart = tf.ItemAreaStart;
                 itemAreaEnd = tf.ItemAreaEnd;
@@ -508,9 +633,9 @@ namespace IoTDBdotNET
         /// <remarks>
         /// Compared to <see cref="OpenRawMemoryMapping"/>, this raw access performs much better.
         /// </remarks>
-        public static RawMemoryMapping<T> OpenRawMemoryMapping(string path)
+        public static RawMemoryMapping<T> OpenRawMemoryMapping(string path, string? password)
         {
-            return RawMemoryMapping<T>.OpenRead(path);
+            return RawMemoryMapping<T>.OpenRead(path, password);
         }
     }
 }

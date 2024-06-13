@@ -18,7 +18,7 @@ namespace IoTDBdotNET.BlockDB
         #endregion
 
         #region Constructors
-        public BlockCollection(string dbPath, string name) : base(dbPath, name)
+        public BlockCollection(string dbPath, string name, string password = "") : base(dbPath, name, password)
         {
             if (!HasIdProperty(typeof(Block)))
             {

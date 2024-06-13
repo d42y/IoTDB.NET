@@ -22,11 +22,14 @@ namespace IoTDBdotNET.TimeSeriesDB
         private Mode OperatingMode;
         private TeaFile<T>? Tf = null;
         private string FilePath;
+        private readonly string _password;
 
-        public FileLocker(Mode mode, string path) 
+        public FileLocker(Mode mode, string path, string? password) 
         {
             FileMode = mode;
             FilePath = path;
+            _password = "";
+            if (!string.IsNullOrEmpty(password) ) _password = password;
         }
 
         public IItemCollection<T>? Read
@@ -83,11 +86,11 @@ namespace IoTDBdotNET.TimeSeriesDB
                 {
                     if (File.Exists(FilePath))
                     {
-                        Tf = TeaFile<T>.Append(FilePath);
+                        Tf = TeaFile<T>.Append(FilePath, _password);
                     }
                     else
                     {
-                        Tf = TeaFile<T>.Create(FilePath);
+                        Tf = TeaFile<T>.Create(FilePath, _password);
                     }
                 }
                 OperatingMode = Mode.Write;
@@ -99,12 +102,12 @@ namespace IoTDBdotNET.TimeSeriesDB
                 }
                 if (Tf == null)
                 {
-                    Tf = TeaFile<T>.OpenRead(FilePath);
+                    Tf = TeaFile<T>.OpenRead(FilePath, _password);
                 }
                 else if (OperatingMode == Mode.Write)
                 {
                     Tf.Dispose();
-                    Tf = TeaFile<T>.OpenRead(FilePath);
+                    Tf = TeaFile<T>.OpenRead(FilePath, _password);
                 }
                 OperatingMode = Mode.Read;
             }

@@ -21,15 +21,19 @@ namespace IoTDBdotNET
 
         private DateTime _lastAccess = DateTime.Now;
 
-        internal readonly string _connectionString;
-        public BaseDatabase(string dbPath, string dbName, double backgroundTaskFromMilliseconds = 100)
+        internal readonly ConnectionString _connectionString;
+
+        public BaseDatabase(string dbPath, string dbName, string? password, double backgroundTaskFromMilliseconds = 100)
         {
             int logicalProcessorCount = Environment.ProcessorCount;
             _numThreads = logicalProcessorCount > 1 ? logicalProcessorCount - 1 : 1;
             _dbName = dbName;
             _dbPath = dbPath;
             if (dbName.ToLower().EndsWith(".db")) _dbName = Path.GetFileNameWithoutExtension(dbName);
-            _connectionString = Path.Combine(dbPath, $"{_dbName}.db");
+            _connectionString = new ConnectionString();
+            if (!string.IsNullOrEmpty(password)) _connectionString.Password = password;
+            _connectionString.Filename = Path.Combine(dbPath, $"{_dbName}.db");
+           
             _liteDatabase = new LiteDatabase(_connectionString);
             
             try

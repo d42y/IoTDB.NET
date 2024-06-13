@@ -22,8 +22,9 @@ namespace IoTDBdotNET
         private readonly object _syncRoot = new object();
         private readonly int _maxItemsPerFlush;
         private System.Timers.Timer? dailyTimer;
+        private readonly string _password;
 
-        public TSNumericStorage(string name, string basePath, bool createDirectoryIfNotExist = false)
+        public TSNumericStorage(string name, string basePath, string? password, bool createDirectoryIfNotExist = false)
         {
             if (!Directory.Exists(basePath))
             {
@@ -43,6 +44,8 @@ namespace IoTDBdotNET
                     throw new DirectoryNotFoundException($"Directory not found. {basePath}");
                 }
             }
+            _password = "";
+            if (!string.IsNullOrEmpty(password)) _password = password;
             _name = name;
             _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
             this.basePath = basePath;
@@ -150,7 +153,7 @@ namespace IoTDBdotNET
                     foreach (var oldFile in oldFiles)
                     {
                         // Open the old file for reading
-                        using (var oldTeaFile = TeaFile<TeaItem>.OpenRead(oldFile))
+                        using (var oldTeaFile = TeaFile<TeaItem>.OpenRead(oldFile, _password))
                         {
                             var items = oldTeaFile.Items.ToList(); // Read all items from the old file
 
@@ -158,7 +161,7 @@ namespace IoTDBdotNET
                             if (File.Exists(targetFilePath))
                             {
                                 // If the target file exists, append items to it
-                                using (var targetTeaFile = TeaFile<TeaItem>.Append(targetFilePath))
+                                using (var targetTeaFile = TeaFile<TeaItem>.Append(targetFilePath, _password))
                                 {
 
                                     targetTeaFile.Write(items);
@@ -168,7 +171,7 @@ namespace IoTDBdotNET
                             else
                             {
                                 // If the target file does not exist, create it and write items
-                                using (var targetTeaFile = TeaFile<TeaItem>.Create(targetFilePath))
+                                using (var targetTeaFile = TeaFile<TeaItem>.Create(targetFilePath, _password))
                                 {
                                     targetTeaFile.Write(items);
                                 }
@@ -266,7 +269,7 @@ namespace IoTDBdotNET
                     
                     try
                     {
-                        using (var tf = TeaFile<TeaItem>.OpenRead(savedFile))
+                        using (var tf = TeaFile<TeaItem>.OpenRead(savedFile, _password))
                         {
                             AppendItemsToFile(backupFile, tf.Items.ToList());
                         }
@@ -317,14 +320,14 @@ namespace IoTDBdotNET
         {
             if (File.Exists(filePath))
             {
-                using (var tf = TeaFile<TeaItem>.Append(filePath))
+                using (var tf = TeaFile<TeaItem>.Append(filePath, _password))
                 {
                     tf.Write(itemsToWrite);
                     if (_queue.Count == 0) tf.Close();
                 }
             } else
             {
-                using (var tf = TeaFile<TeaItem>.Create(filePath))
+                using (var tf = TeaFile<TeaItem>.Create(filePath, _password))
                 {
                     tf.Write(itemsToWrite);
                     if (_queue.Count == 0) tf.Close();
@@ -344,7 +347,7 @@ namespace IoTDBdotNET
                     {
                         try
                         {
-                            using (var tf = TeaFile<TeaItem>.OpenRead(savedFile))
+                            using (var tf = TeaFile<TeaItem>.OpenRead(savedFile, _password))
                             {
 
                                 AppendItemsToFile(backupFile, tf.Items.ToList());
@@ -454,7 +457,7 @@ namespace IoTDBdotNET
                 {
                     Time _from = from;
                     Time _to = to;
-                    using (var tf = TeaFile<TeaItem>.OpenRead(filePath))
+                    using (var tf = TeaFile<TeaItem>.OpenRead(filePath, _password))
                     {
                         var tsItems = tf.Items.Where(item => targetIds.Contains(item.EntityId) && item.Timestamp >= _from && item.Timestamp <= _to).ToList();
                         foreach (var tsItem in tsItems)

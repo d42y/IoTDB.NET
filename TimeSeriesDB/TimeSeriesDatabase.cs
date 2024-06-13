@@ -14,11 +14,14 @@ namespace IoTDBdotNET
         private int _roundRobinCounter = 0; // Added for round-robin storage selection
 
         private readonly int _maxItemsPerFlush;
+        private readonly string _password;
 
-        public TimeSeriesDatabase(string dbPath) : base(dbPath, "index")
+        public TimeSeriesDatabase(string dbPath, string? password) : base(dbPath, "index", password)
         {
             try
             {
+                _password = "";
+                if (!string.IsNullOrEmpty(password)) _password = password;
                 _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
                 InitializeDatabase();
                 InitializeTimeSeriesStorages(dbPath);
@@ -45,8 +48,8 @@ namespace IoTDBdotNET
         {
             for (int i = 1; i <= NumThreads; i++)
             {
-                _numericStorage[i] = new TSNumericStorage(i.ToString(), DbPath, true);
-                _bsonStorage[i] = new TSBsonStorage(DbPath, $"{i}_BsonSeries");
+                _numericStorage[i] = new TSNumericStorage(i.ToString(), DbPath, _password, true);
+                _bsonStorage[i] = new TSBsonStorage(DbPath, $"{i}_BsonSeries", _password);
             }
         }
         #endregion Init

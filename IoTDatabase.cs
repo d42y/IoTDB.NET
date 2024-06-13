@@ -19,16 +19,20 @@ namespace IoTDBdotNET
         internal ConcurrentDictionary<string, TableInfo> _tableInfos = new();
 
         private ConcurrentDictionary<string, IFileCollection> _files = new();
+        internal readonly string _password;
 
-        public IoTDatabase(string dbName, string dbPath)
+
+        public IoTDatabase(string dbName, string dbPath, string? password)
         {
+            _password = "";
+            if (!string.IsNullOrEmpty(password)) _password = password;
             // Directory checks and creation
             InitializeDirectories(dbName, dbPath);
             if (!Directory.Exists(_dbPath)) throw new DirectoryNotFoundException($"Unable to create database directory. {_dbPath}");
             if (!Directory.Exists(_tsPath)) throw new DirectoryNotFoundException($"Unable to create timeseries directory. {_tsPath}");
             if (!Directory.Exists(_tbPath)) throw new DirectoryNotFoundException($"Unable to create tables directory. {_tbPath}");
             if (!Directory.Exists(_flPath)) throw new DirectoryNotFoundException($"Unable to create files directory. {_flPath}");
-            TimeSeries = new TimeSeriesDatabase(_tsPath);
+            TimeSeries = new TimeSeriesDatabase(_tsPath, _password);
             TimeSeries.ExceptionOccurred += OnExceptionOccurred;
 
         }

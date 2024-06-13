@@ -12,7 +12,7 @@ namespace IoTDBdotNET
 
         private readonly int _maxItemsPerFlush;
 
-        public TSBsonStorage(string databasePath, string name) : base(databasePath, name, 10)
+        public TSBsonStorage(string databasePath, string name, string? password) : base(databasePath, name, password, 10)
         {
             _maxItemsPerFlush = Helper.Limits.GetMaxProcessingItems();
         }
